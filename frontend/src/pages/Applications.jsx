@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,8 +38,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { apiClient } from "@/lib/apiClient";
 
-const applications = [
+// Demo applications for fallback
+const demoApplications = [
   {
     id: 1,
     company: "Google",
@@ -143,19 +145,64 @@ const statusConfig = {
     label: "Interview",
     className: "bg-amber-500/20 text-amber-400 border-amber-500/30",
   },
+  interviewing: {
+    label: "Interviewing",
+    className: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  },
   offer: {
     label: "Offer",
+    className: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  },
+  offered: {
+    label: "Offered",
     className: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
   },
   rejected: {
     label: "Rejected",
     className: "bg-red-500/20 text-red-400 border-red-500/30",
   },
+  withdrawn: {
+    label: "Withdrawn",
+    className: "bg-gray-500/20 text-gray-400 border-gray-500/30",
+  },
 };
 
 const Applications = () => {
+  const [applications, setApplications] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Fetch applications from API
+  useEffect(() => {
+    const fetchApplications = async () => {
+      try {
+        setLoading(true);
+        const data = await apiClient.applications.getAll();
+        setApplications(Array.isArray(data) ? data : demoApplications);
+        setError(null);
+      } catch (err) {
+        console.warn("Failed to fetch from API, using demo data:", err);
+        setApplications(demoApplications);
+        setError("Using demo data - backend connection failed");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchApplications();
+  }, []);
+
+  const handleDeleteApplication = async (id) => {
+    try {
+      await apiClient.applications.delete(id);
+      setApplications(applications.filter((app) => app.id !== id));
+    } catch (err) {
+      console.error("Failed to delete application:", err);
+      alert("Failed to delete application");
+    }
+  };
 
   const filteredApplications = applications.filter((app) => {
     const matchesSearch =
@@ -222,11 +269,21 @@ const Applications = () => {
           {/* Applications Table */}
           <Card className="glass opacity-0 animate-fade-in animation-delay-200">
             <CardHeader>
-              <CardTitle className="text-lg">
-                All Applications ({filteredApplications.length})
-              </CardTitle>
+              <div className="flex justify-between items-center">
+                <CardTitle className="text-lg">
+                  All Applications ({filteredApplications.length})
+                </CardTitle>
+                {error && (
+                  <span className="text-xs text-amber-500">{error}</span>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <p className="text-muted-foreground">Loading applications...</p>
+                </div>
+              ) : (
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -268,9 +325,9 @@ const Applications = () => {
                         <TableCell>
                           <Badge
                             variant="outline"
-                            className={statusConfig[app.status].className}
+                            className={statusConfig[app.status]?.className || "bg-gray-500/20 text-gray-400 border-gray-500/30"}
                           >
-                            {statusConfig[app.status].label}
+                            {statusConfig[app.status]?.label || app.status || "Unknown"}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -298,7 +355,10 @@ const Applications = () => {
                                 <ExternalLink className="w-4 h-4 mr-2" />
                                 View Job
                               </DropdownMenuItem>
-                              <DropdownMenuItem className="text-destructive">
+                              <DropdownMenuItem 
+                                className="text-destructive"
+                                onClick={() => handleDeleteApplication(app._id || app.id)}
+                              >
                                 <Trash2 className="w-4 h-4 mr-2" />
                                 Delete
                               </DropdownMenuItem>
@@ -310,6 +370,7 @@ const Applications = () => {
                   </TableBody>
                 </Table>
               </div>
+              )}
             </CardContent>
           </Card>
         </main>
