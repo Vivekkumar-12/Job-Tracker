@@ -9,6 +9,7 @@ import resumeRoutes from './routes/resumes.js';
 import reminderRoutes from './routes/reminders.js';
 import jobListingRoutes from './routes/jobListings.js';
 import searchRoutes from './routes/search.js';
+import path from 'path';
 
 dotenv.config();
 
@@ -22,6 +23,8 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+// Static serving for uploaded files
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

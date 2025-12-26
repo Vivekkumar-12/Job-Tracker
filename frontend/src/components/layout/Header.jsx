@@ -2,7 +2,7 @@ import { Search, Bell, Command, LogOut, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/contexts/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,6 +32,12 @@ export function Header() {
   return (
     <header className="h-16 border-b border-border bg-background/80 backdrop-blur-lg sticky top-0 z-30">
       <div className="h-full flex items-center justify-between px-6">
+        {/* Logo + Name */}
+        <Link to="/" className="mr-6 flex items-center gap-2 flex-shrink-0 hover:opacity-80 transition-opacity">
+          <img src="/icon-2.png" alt="JobTracker" className="h-10 w-10 rounded-lg" />
+          <span className="text-lg font-semibold gradient-text">JobTracker</span>
+        </Link>
+
         {/* Search Bar */}
         <div className="flex-1 max-w-md">
           <div className="relative group">

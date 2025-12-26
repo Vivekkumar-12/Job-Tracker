@@ -9,8 +9,9 @@ const getAuthToken = () => {
 // Helper to make authenticated requests
 const makeRequest = async (url, options = {}) => {
   const token = getAuthToken();
+  const isFormData = options.body instanceof FormData;
   const headers = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...options.headers,
   };
 
@@ -94,6 +95,11 @@ export const apiClient = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+    createMultipart: (formData) =>
+      makeRequest(`${API_BASE_URL}/resumes`, {
+        method: 'POST',
+        body: formData,
+      }),
     update: (id, data) =>
       makeRequest(`${API_BASE_URL}/resumes/${id}`, {
         method: 'PUT',
@@ -107,6 +113,22 @@ export const apiClient = {
       makeRequest(`${API_BASE_URL}/resumes/${id}/default`, {
         method: 'PATCH',
       }),
+    clearDefault: () =>
+      makeRequest(`${API_BASE_URL}/resumes/default/clear`, {
+        method: 'PATCH',
+      }),
+    uploadFile: (id, file) => {
+      const form = new FormData();
+      form.append('file', file);
+      return makeRequest(`${API_BASE_URL}/resumes/${id}/file`, {
+        method: 'PATCH',
+        body: form,
+      });
+    },
+    downloadFile: (id) => {
+      // Return the download URL directly for use with window.location or <a> tag
+      return `${API_BASE_URL}/resumes/${id}/download`;
+    },
   },
 
   // Reminders
@@ -157,6 +179,11 @@ export const apiClient = {
     toggleBookmark: (id) =>
       makeRequest(`${API_BASE_URL}/job-listings/${id}/bookmark`, {
         method: 'PATCH',
+      }),
+    enrich: (jobUrl) =>
+      makeRequest(`${API_BASE_URL}/job-listings/enrich`, {
+        method: 'POST',
+        body: JSON.stringify({ jobUrl }),
       }),
   },
 

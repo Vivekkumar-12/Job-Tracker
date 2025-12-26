@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -29,6 +29,20 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
 
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 1024) {
+        setCollapsed(true);
+      } else {
+        setCollapsed(false);
+      }
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   return (
     <aside
       className={cn(
@@ -38,13 +52,10 @@ export function Sidebar() {
       )}
     >
       {/* Logo */}
-      <Link to="/" className="flex items-center gap-3 p-6 border-b border-sidebar-border hover:bg-sidebar-accent/50 transition-colors">
-        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent">
-          <Briefcase className="w-5 h-5 text-primary-foreground" />
-        </div>
-        {!collapsed && (
-          <span className="text-xl font-semibold gradient-text">JobFlow</span>
-        )}
+      <Link to="/" className="flex items-center justify-center gap-3 p-6 border-b border-sidebar-border hover:bg-sidebar-accent/50 transition-colors">
+        <span className="text-xl font-semibold gradient-text">
+          {collapsed ? "JT" : "JobTracker"}
+        </span>
       </Link>
 
       {/* Add New Button */}

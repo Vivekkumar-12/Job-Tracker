@@ -5,7 +5,8 @@ import {
   createJobListing,
   updateJobListing,
   deleteJobListing,
-  toggleBookmark
+  toggleBookmark,
+  enrichFromUrl
 } from '../controllers/jobListingController.js';
 
 const router = express.Router();
@@ -16,5 +17,6 @@ router.post('/', createJobListing);
 router.put('/:id', updateJobListing);
 router.delete('/:id', deleteJobListing);
 router.patch('/:id/bookmark', toggleBookmark);
+router.post('/enrich', enrichFromUrl);
 
 export default router;

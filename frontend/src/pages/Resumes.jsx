@@ -1,10 +1,20 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import apiClient from "@/lib/apiClient";
 import {
   Plus,
   FileText,
@@ -26,35 +36,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const resumes = [
-  {
-    id: 1,
-    name: "Software Engineer Resume",
-    lastModified: "2024-01-15",
-    isDefault: true,
-    score: 92,
-    usedFor: 12,
-    status: "optimized",
-  },
-  {
-    id: 2,
-    name: "Frontend Developer Resume",
-    lastModified: "2024-01-12",
-    isDefault: false,
-    score: 85,
-    usedFor: 8,
-    status: "good",
-  },
-  {
-    id: 3,
-    name: "Full Stack Resume",
-    lastModified: "2024-01-08",
-    isDefault: false,
-    score: 78,
-    usedFor: 4,
-    status: "needs-work",
-  },
-];
+// Tips and cover letters demo remain static for now
 
 const coverLetters = [
   {
@@ -80,7 +62,81 @@ const tips = [
 ];
 
 const Resumes = () => {
-  const [defaultResume, setDefaultResume] = useState(1);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [openCreate, setOpenCreate] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newFile, setNewFile] = useState(null);
+
+  const loadResumes = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await apiClient.resumes.getAll();
+      setItems(data);
+    } catch (e) {
+      setError(e.message || "Failed to load resumes");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadResumes();
+  }, []);
+
+  const handleCreate = async () => {
+    if (!newTitle) return;
+    try {
+      let created;
+      if (newFile) {
+        const form = new FormData();
+        form.append('title', newTitle);
+        form.append('file', newFile);
+        created = await apiClient.resumes.createMultipart(form);
+      } else {
+        const payload = { title: newTitle, filename: `${newTitle}.pdf` };
+        created = await apiClient.resumes.create(payload);
+      }
+      setItems((prev) => [created, ...prev]);
+      setOpenCreate(false);
+      setNewTitle("");
+      setNewFile(null);
+    } catch (e) {
+      setError(e.message || "Failed to create resume");
+    }
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      await apiClient.resumes.delete(id);
+      setItems((prev) => prev.filter((r) => r._id !== id));
+    } catch (e) {
+      setError(e.message || "Failed to delete resume");
+    }
+  };
+
+  const handleSetDefault = async (id) => {
+    try {
+      const updated = await apiClient.resumes.setDefault(id);
+      // Re-fetch or update locally
+      setItems((prev) =>
+        prev.map((r) => ({ ...r, isDefault: r._id === updated._id }))
+      );
+    } catch (e) {
+      setError(e.message || "Failed to set default");
+    }
+  };
+
+  const handleClearDefault = async () => {
+    try {
+      await apiClient.resumes.clearDefault();
+      setItems((prev) => prev.map((r) => ({ ...r, isDefault: false })));
+    } catch (e) {
+      setError(e.message || "Failed to clear default");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -99,14 +155,46 @@ const Resumes = () => {
               </p>
             </div>
             <div className="flex gap-3">
-              <Button variant="outline" className="bg-secondary/50">
-                <Upload className="w-4 h-4 mr-2" />
-                Upload
-              </Button>
-              <Button variant="gradient">
-                <Plus className="w-4 h-4 mr-2" />
-                Create New
-              </Button>
+              <Dialog open={openCreate} onOpenChange={setOpenCreate}>
+                <DialogTrigger asChild>
+                  <Button variant="gradient">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create New
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Create Resume</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-sm">Title</label>
+                      <Input
+                        value={newTitle}
+                        onChange={(e) => setNewTitle(e.target.value)}
+                        placeholder="e.g., Software Engineer Resume"
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm">File (optional)</label>
+                      <Input
+                        type="file"
+                        onChange={(e) => setNewFile(e.target.files?.[0] || null)}
+                        accept=".pdf,.doc,.docx"
+                        className="mt-1"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        File is not uploaded yet; stored as metadata for now.
+                      </p>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setOpenCreate(false)}>Cancel</Button>
+                    <Button onClick={handleCreate}>Save</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
 
@@ -114,12 +202,19 @@ const Resumes = () => {
             {/* Resumes Section */}
             <div className="lg:col-span-2 space-y-4">
               <h2 className="text-lg font-semibold opacity-0 animate-fade-in animation-delay-100">
-                Resumes ({resumes.length})
+                Resumes ({items.length})
               </h2>
 
-              {resumes.map((resume, idx) => (
+              {error && (
+                <div className="text-sm text-destructive">{error}</div>
+              )}
+              {loading && (
+                <div className="text-sm text-muted-foreground">Loading...</div>
+              )}
+
+              {items.map((resume, idx) => (
                 <Card
-                  key={resume.id}
+                  key={resume._id}
                   className="glass glass-hover opacity-0 animate-fade-in"
                   style={{ animationDelay: `${(idx + 2) * 100}ms` }}
                 >
@@ -131,7 +226,7 @@ const Resumes = () => {
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <h3 className="font-semibold truncate">{resume.name}</h3>
+                          <h3 className="font-semibold truncate">{resume.title}</h3>
                           {resume.isDefault && (
                             <Badge className="bg-primary/20 text-primary border-primary/30">
                               <Star className="w-3 h-3 mr-1" />
@@ -140,9 +235,9 @@ const Resumes = () => {
                           )}
                         </div>
                         <p className="text-sm text-muted-foreground mt-1">
-                          Last modified: {new Date(resume.lastModified).toLocaleDateString()}
+                          Last modified: {new Date(resume.updatedAt || resume.createdAt).toLocaleDateString()}
                           <span className="mx-2">•</span>
-                          Used for {resume.usedFor} applications
+                          Filename: {resume.filename}
                         </p>
 
                         <div className="flex items-center gap-4 mt-3">
@@ -151,34 +246,31 @@ const Resumes = () => {
                               <span className="text-muted-foreground">ATS Score</span>
                               <span
                                 className={
-                                  resume.score >= 90
+                                  (resume.atsScore ?? 0) >= 90
                                     ? "text-emerald-400"
-                                    : resume.score >= 80
+                                    : (resume.atsScore ?? 0) >= 80
                                     ? "text-amber-400"
                                     : "text-red-400"
                                 }
                               >
-                                {resume.score}%
+                                {Math.round(resume.atsScore ?? 0)}%
                               </span>
                             </div>
-                            <Progress
-                              value={resume.score}
-                              className="h-1.5"
-                            />
+                            <Progress value={Math.round(resume.atsScore ?? 0)} className="h-1.5" />
                           </div>
                           <Badge
                             variant="outline"
                             className={
-                              resume.status === "optimized"
+                              (resume.atsScore ?? 0) >= 85
                                 ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
-                                : resume.status === "good"
+                                : (resume.atsScore ?? 0) >= 75
                                 ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
                                 : "bg-red-500/20 text-red-400 border-red-500/30"
                             }
                           >
-                            {resume.status === "optimized"
+                            {(resume.atsScore ?? 0) >= 85
                               ? "Optimized"
-                              : resume.status === "good"
+                              : (resume.atsScore ?? 0) >= 75
                               ? "Good"
                               : "Needs Work"}
                           </Badge>
@@ -186,10 +278,29 @@ const Resumes = () => {
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          disabled={!resume.fileUrl}
+                          onClick={() => {
+                            if (resume.fileUrl) window.open(resume.fileUrl, "_blank");
+                          }}
+                        >
                           <Eye className="w-4 h-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          disabled={!resume.fileUrl}
+                          onClick={() => {
+                            if (resume._id) {
+                              const downloadUrl = apiClient.resumes.downloadFile(resume._id);
+                              window.location.href = downloadUrl;
+                            }
+                          }}
+                        >
                           <Download className="w-4 h-4" />
                         </Button>
                         <DropdownMenu>
@@ -199,22 +310,15 @@ const Resumes = () => {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem>
-                              <Edit className="w-4 h-4 mr-2" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Copy className="w-4 h-4 mr-2" />
-                              Duplicate
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => setDefaultResume(resume.id)}
-                              disabled={resume.isDefault}
-                            >
+                            <DropdownMenuItem onClick={() => handleSetDefault(resume._id)} disabled={resume.isDefault}>
                               <Star className="w-4 h-4 mr-2" />
                               Set as Default
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="text-destructive">
+                            <DropdownMenuItem onClick={handleClearDefault} disabled={!resume.isDefault}>
+                              <Star className="w-4 h-4 mr-2" />
+                              Remove Default
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(resume._id)}>
                               <Trash2 className="w-4 h-4 mr-2" />
                               Delete
                             </DropdownMenuItem>

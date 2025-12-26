@@ -11,6 +11,12 @@ const resumeSchema = new mongoose.Schema({
   },
   fileUrl: String,
   fileSize: Number,
+  atsScore: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 100,
+  },
   isDefault: {
     type: Boolean,
     default: false
