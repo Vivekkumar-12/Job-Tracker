@@ -10,8 +10,15 @@ const TECH_KEYWORDS = [
   'azure', 'gcp', 'linux', 'git', 'ci/cd', 'terraform', 'ansible', 'microservices',
   'c++', 'c#', '.net', 'ruby', 'go', 'rust', 'scala', 'elixir', 'php', 'jsp',
   'spring', 'hibernate', 'jpa', 'django', 'flask', 'fastapi', 'express', 'next',
-  'vue', 'angular', 'svelte', 'webpack', 'vite', 'rollup', 'parcel', 'junit', 'pytest',
-  'jenkins', 'github actions', 'gitlab ci', 'bitbucket', 'jira', 'confluence',
+  'nextjs', 'nuxt', 'vue', 'angular', 'svelte', 'webpack', 'vite', 'rollup', 'parcel', 
+  'junit', 'pytest', 'jest', 'vitest', 'mocha',
+  'jenkins', 'github actions', 'gitlab ci', 'circleci', 'bitbucket', 'jira', 'confluence',
+  'bun', 'deno', 'remix', 'qwik', 'astro', 'solid', 'htmx', 'alpinejs',
+  'tailwindcss', 'bootstrap', 'material ui', 'shadcn', 'storybook',
+  'postgresql', 'mysql', 'redis', 'elasticsearch', 'cassandra', 'dynamodb',
+  'web3', 'solidity', 'ethereum', 'blockchain', 'crypto',
+  'machine learning', 'tensorflow', 'pytorch', 'scikit-learn', 'huggingface',
+  'nlp', 'llm', 'gpt', 'langchain', 'llamaindex', 'vertexai', 'anthropic',
 ];
 
 const SECTION_PATTERNS = [

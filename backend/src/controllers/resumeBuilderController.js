@@ -7,6 +7,7 @@ import Resume from '../models/Resume.js';
 import resumeAtsScorer from '../services/resumeAtsScorer.js';
 import resumeAiEnhancer from '../services/resumeAiEnhancer.js';
 import resumeExportService from '../services/resumeExportService.js';
+import { analyzeResumeLocally } from '../services/localAts.js';
 
 /**
  * GET /api/resumes - Get all resumes for a user
@@ -536,10 +537,30 @@ export const getTemplates = async (req, res) => {
         category: 'Experience-Level'
       }
     ];
+/**
+ * POST /api/resumes/analyze-file - Analyze uploaded resume file for ATS score
+ */
+export const analyzeResumeFile = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const filePath = req.file.path;
+    
+    // Analyze the file locally
+    const analysis = await analyzeResumeLocally(filePath);
 
     res.json({
       success: true,
-      data: templates
+      message: 'Resume file analyzed',
+      data: {
+        atsScore: analysis.atsScore,
+        strengths: analysis.strengths,
+        improvements: analysis.improvements,
+        keywords: analysis.keywords,
+        fileName: req.file.originalname
+      }
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -563,5 +584,6 @@ export default {
   getVersionHistory,
   restoreVersion,
   togglePin,
-  getTemplates
+  getTemplates,
+  analyzeResumeFile
 };

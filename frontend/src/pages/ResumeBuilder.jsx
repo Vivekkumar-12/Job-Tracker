@@ -43,9 +43,9 @@ export default function ResumeBuilder() {
       setLoading(true);
       const response = await apiClient.resumes.getAll();
       const data = response.data || response; // support direct json
-      const list = data.data || data;
+      const list = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : []);
       setResumes(list || []);
-      if ((list || []).length > 0) {
+      if (list && list.length > 0 && list[0]?._id) {
         setSelectedResumeId(list[0]._id);
       }
     } catch (error) {
@@ -75,9 +75,11 @@ export default function ResumeBuilder() {
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/resumes/templates`);
       const json = await res.json();
-      setTemplates(json.data || []);
+      const templateList = Array.isArray(json) ? json : (Array.isArray(json.data) ? json.data : []);
+      setTemplates(templateList || []);
     } catch (error) {
       console.error('Error fetching templates:', error);
+      setTemplates([]); // Set empty array on error
     }
   };
 
@@ -110,7 +112,7 @@ export default function ResumeBuilder() {
   const handleDeleteResume = async (id) => {
     try {
       setLoading(true);
-      await apiClient.delete(`/api/resumes/${id}`);
+      await apiClient.resumes.delete(id);
       setResumes(resumes.filter(r => r._id !== id));
       if (selectedResumeId === id) {
         setSelectedResumeId(resumes.length > 1 ? resumes[0]._id : null);
@@ -128,18 +130,18 @@ export default function ResumeBuilder() {
     try {
       setLoading(true);
       const resumeToDuplicate = await apiClient.resumes.get(id);
-      const data = resumeToDuplicate.data || resumeToDuplicate;
+      const resumeData = resumeToDuplicate.data?.data || resumeToDuplicate.data || resumeToDuplicate;
       const newResponse = await apiClient.resumes.create({
-        title: `${resumeToDuplicate.title} (Copy)`,
-        templateId: data.templateId,
-        personalInfo: data.personalInfo,
-        summary: data.summary,
-        skills: data.skills,
-        workExperience: data.workExperience,
-        education: data.education,
-        projects: data.projects,
-        certifications: data.certifications,
-        achievements: data.achievements
+        title: `${resumeData.title} (Copy)`,
+        templateId: resumeData.templateId,
+        personalInfo: resumeData.personalInfo,
+        summary: resumeData.summary,
+        skills: resumeData.skills,
+        workExperience: resumeData.workExperience,
+        education: resumeData.education,
+        projects: resumeData.projects,
+        certifications: resumeData.certifications,
+        achievements: resumeData.achievements
       });
       const newResume = newResponse.data?.data || newResponse.data || newResponse;
       setResumes([newResume, ...resumes]);
@@ -166,6 +168,7 @@ export default function ResumeBuilder() {
       document.body.appendChild(link);
       link.click();
       link.parentElement.removeChild(link);
+      window.URL.revokeObjectURL(url);
 
       showNotification('Resume exported as PDF', 'success');
     } catch (error) {
@@ -189,6 +192,7 @@ export default function ResumeBuilder() {
       document.body.appendChild(link);
       link.click();
       link.parentElement.removeChild(link);
+      window.URL.revokeObjectURL(url);
 
       showNotification('Resume exported as DOCX', 'success');
     } catch (error) {
@@ -391,16 +395,20 @@ export default function ResumeBuilder() {
                 <div>
                   <Label>Select Template</Label>
                   <div className="template-grid">
-                    {templates.map(template => (
-                      <div
-                        key={template.id}
-                        className={`template-card ${selectedTemplate === template.id ? 'selected' : ''}`}
-                        onClick={() => setSelectedTemplate(template.id)}
-                      >
-                        <h4>{template.name}</h4>
-                        <p>{template.category}</p>
-                      </div>
-                    ))}
+                    {templates && templates.length > 0 ? (
+                      templates.map(template => (
+                        <div
+                          key={template.id || template._id || template.name}
+                          className={`template-card ${selectedTemplate === (template.id || template._id) ? 'selected' : ''}`}
+                          onClick={() => setSelectedTemplate(template.id || template._id || 'ats-classic')}
+                        >
+                          <h4>{template.name}</h4>
+                          <p>{template.category}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No templates available</p>
+                    )}
                   </div>
                 </div>
 

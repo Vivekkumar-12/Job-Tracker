@@ -9,7 +9,8 @@ const verifyToken = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.userId = decoded.id;
+    req.user = { id: decoded.id };
+    req.userId = decoded.id; // Keep for backwards compatibility
     next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {

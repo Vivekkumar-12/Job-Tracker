@@ -1,11 +1,28 @@
 import express from 'express';
+import multer from 'multer';
 import resumeBuilderController from '../controllers/resumeBuilderController.js';
 
 const router = express.Router();
 
+// Configure multer for file uploads
+const upload = multer({
+  dest: 'uploads/',
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = ['application/pdf', 'application/msword', 
+                          'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF and Word documents are allowed'), false);
+    }
+  }
+});
+
 // ============ Resume CRUD Operations ============
-router.get('/', resumeBuilderController.getResumes);
+// IMPORTANT: Specific routes must come before dynamic :id routes
 router.get('/templates', resumeBuilderController.getTemplates);
+router.post('/analyze-file', upload.single('resume'), resumeBuilderController.analyzeResumeFile);
+router.get('/', resumeBuilderController.getResumes);
 router.post('/', resumeBuilderController.createResume);
 router.get('/:id', resumeBuilderController.getResume);
 router.put('/:id', resumeBuilderController.updateResume);

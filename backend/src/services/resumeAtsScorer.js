@@ -140,15 +140,23 @@ class ResumeAtsScorer {
 
   /**
    * Analyze keyword match between resume and job description
+   * Also checks for role-specific keywords
    */
   analyzeKeywordMatch(resume, jobDescription) {
     const jobKeywords = this.extractKeywords(jobDescription);
     const resumeText = this.extractAllText(resume).toLowerCase();
     
+    // Add role-specific keywords based on detected role
+    const detectedRole = this.detectRole(jobDescription.toLowerCase());
+    const roleKeywords = detectedRole ? this.roleKeywords[detectedRole] || [] : [];
+    
+    // Combine job keywords with role-specific keywords
+    const allKeywords = [...new Set([...jobKeywords, ...roleKeywords])];
+    
     const matched = [];
     const missing = [];
 
-    jobKeywords.forEach(keyword => {
+    allKeywords.forEach(keyword => {
       if (resumeText.includes(keyword.toLowerCase())) {
         matched.push(keyword);
       } else {
@@ -156,8 +164,8 @@ class ResumeAtsScorer {
       }
     });
 
-    const matchPercentage = jobKeywords.length > 0 
-      ? (matched.length / jobKeywords.length) * 100 
+    const matchPercentage = allKeywords.length > 0 
+      ? (matched.length / allKeywords.length) * 100 
       : 0;
 
     return {
@@ -165,6 +173,18 @@ class ResumeAtsScorer {
       matched: matched.slice(0, 20), // Top 20 matches
       missing: missing.slice(0, 10)  // Top 10 missing
     };
+  }
+
+  /**
+   * Detect the job role from job description
+   */
+  detectRole(jobDescriptionLower) {
+    for (const [role, keywords] of Object.entries(this.roleKeywords)) {
+      if (keywords.some(kw => jobDescriptionLower.includes(kw.toLowerCase()))) {
+        return role;
+      }
+    }
+    return null;
   }
 
   /**

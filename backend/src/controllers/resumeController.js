@@ -1,20 +1,16 @@
 import Resume from '../models/Resume.js';
 import { extractResumeText } from '../services/resumeParser.js';
-import { calculateATSScore } from '../services/atsScorer.js';
+import resumeAtsScorer from '../services/resumeAtsScorer.js';
 import path from 'path';
 import fs from 'fs';
 
-// naive ATS score estimation based on file type (placeholder)
-const estimateAtsScore = async (data) => {
-  // If we have a file path, extract text and compute ATS score
-  if (data.fileUrl) {
+// Estimate ATS score using the comprehensive resumeAtsScorer
+const estimateAtsScore = async (resume) => {
+  // Use the resumeAtsScorer for consistent scoring
+  if (resume && typeof resume === 'object') {
     try {
-      const filepath = path.join(process.cwd(), 'uploads', path.basename(data.fileUrl));
-      if (fs.existsSync(filepath)) {
-        const resumeText = await extractResumeText({ path: filepath });
-        const result = calculateATSScore(resumeText);
-        return result.atsScore;
-      }
+      const scores = await resumeAtsScorer.scoreResume(resume);
+      return scores.overallScore || 65;
     } catch (err) {
       console.warn('ATS scoring failed:', err.message);
     }
