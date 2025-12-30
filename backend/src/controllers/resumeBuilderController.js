@@ -537,6 +537,16 @@ export const getTemplates = async (req, res) => {
         category: 'Experience-Level'
       }
     ];
+
+    res.json({
+      success: true,
+      data: templates
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 /**
  * POST /api/resumes/analyze-file - Analyze uploaded resume file for ATS score
  */
