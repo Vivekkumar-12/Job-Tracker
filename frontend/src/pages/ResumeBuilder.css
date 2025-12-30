@@ -1,0 +1,16 @@
+/* Layout for Resume Builder page */
+.resume-builder-container { display: grid; gap: 16px; }
+.resume-builder-header { display: grid; gap: 12px; }
+.header-top { display: flex; justify-content: space-between; align-items: center; }
+.resume-list { display: grid; grid-auto-rows: minmax(60px, auto); gap: 8px; }
+.resume-card { display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; }
+.resume-card.active { border-color: #3b82f6; background: #eff6ff; }
+.resume-info h3 { margin: 0; font-size: 14px; }
+.ats-badge { background: #dcfce7; color: #166534; padding: 2px 6px; border-radius: 6px; font-size: 12px; }
+.template-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+.template-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px; cursor: pointer; }
+.template-card.selected { border-color: #3b82f6; background: #eff6ff; }
+.tabs-header { display: flex; justify-content: space-between; align-items: center; }
+.tabs-content { margin-top: 12px; }
+.export-actions { display: flex; gap: 8px; }
+.notification { position: fixed; bottom: 16px; right: 16px; }

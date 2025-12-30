@@ -1,16 +1,26 @@
 import Resume from '../models/Resume.js';
-import { scoreResume } from '../services/atsScoring.js';
+import { extractResumeText } from '../services/resumeParser.js';
+import { calculateATSScore } from '../services/atsScorer.js';
 import path from 'path';
 import fs from 'fs';
 
 // naive ATS score estimation based on file type (placeholder)
 const estimateAtsScore = async (data) => {
-  return scoreResume({
-    title: data?.title,
-    filename: data?.filename,
-    fileSize: data?.fileSize || 0,
-    fileUrl: data?.fileUrl,
-  });
+  // If we have a file path, extract text and compute ATS score
+  if (data.fileUrl) {
+    try {
+      const filepath = path.join(process.cwd(), 'uploads', path.basename(data.fileUrl));
+      if (fs.existsSync(filepath)) {
+        const resumeText = await extractResumeText({ path: filepath });
+        const result = calculateATSScore(resumeText);
+        return result.atsScore;
+      }
+    } catch (err) {
+      console.warn('ATS scoring failed:', err.message);
+    }
+  }
+  // Fallback: return a baseline score
+  return 65;
 };
 
 // Get all resumes
@@ -58,8 +68,32 @@ export const createResume = async (req, res) => {
       payload.filename = file.originalname;
       payload.fileSize = file.size;
       payload.fileUrl = `${req.protocol}://${req.get('host')}/uploads/${file.filename}`;
+      // Extract and score resume using local parser and scorer
+      try {
+        const filepath = path.join(process.cwd(), 'uploads', file.filename);
+        const resumeText = await extractResumeText({ path: filepath });
+        const result = calculateATSScore(resumeText);
+        payload.atsScore = result.atsScore;
+        payload.aiAnalysis = {
+          atsScore: result.atsScore,
+          strengths: [
+            `Found ${result.detectedSections.length} standard resume sections`,
+            `Detected ${result.matchedSkills.length} technical skills`,
+            `${result.actionVerbCount} action verbs used`,
+            `${result.numberCount} quantifiable metrics included`,
+          ],
+          improvements: result.suggestions,
+          keywords: result.matchedSkills,
+          analyzedAt: new Date(),
+        };
+      } catch (err) {
+        console.warn('Resume analysis failed:', err.message);
+        payload.atsScore = await estimateAtsScore(payload);
+      }
     }
-    payload.atsScore = typeof base.atsScore === 'number' ? base.atsScore : await estimateAtsScore(payload);
+    if (typeof payload.atsScore !== 'number') {
+      payload.atsScore = typeof base.atsScore === 'number' ? base.atsScore : await estimateAtsScore(payload);
+    }
     const resume = new Resume(payload);
     await resume.save();
     res.status(201).json(resume);
@@ -71,7 +105,17 @@ export const createResume = async (req, res) => {
 // Update resume
 export const updateResume = async (req, res) => {
   try {
-    const data = { ...req.body, updatedAt: new Date() };
+    const file = req.file;
+    const base = req.body || {};
+    const data = { ...base, updatedAt: new Date() };
+    
+    // If a file is uploaded, update file-related fields
+    if (file) {
+      data.filename = file.originalname;
+      data.fileSize = file.size;
+      data.fileUrl = `${req.protocol}://${req.get('host')}/uploads/${file.filename}`;
+    }
+    
     if (typeof data.atsScore !== 'number') {
       // Re-estimate if not provided
       const current = await Resume.findById(req.params.id);
@@ -135,8 +179,28 @@ export const uploadResumeFile = async (req, res) => {
       fileUrl: `${req.protocol}://${req.get('host')}/uploads/${file.filename}`,
       updatedAt: new Date(),
     };
-    // Re-score including fileSize and filename
-    update.atsScore = await estimateAtsScore(update);
+    // Extract and score resume using local parser and scorer
+    try {
+      const filepath = path.join(process.cwd(), 'uploads', file.filename);
+      const resumeText = await extractResumeText({ path: filepath });
+      const result = calculateATSScore(resumeText);
+      update.atsScore = result.atsScore;
+      update.aiAnalysis = {
+        atsScore: result.atsScore,
+        strengths: [
+          `Found ${result.detectedSections.length} standard resume sections`,
+          `Detected ${result.matchedSkills.length} technical skills`,
+          `${result.actionVerbCount} action verbs used`,
+          `${result.numberCount} quantifiable metrics included`,
+        ],
+        improvements: result.suggestions,
+        keywords: result.matchedSkills,
+        analyzedAt: new Date(),
+      };
+    } catch (err) {
+      console.warn('Resume analysis failed:', err.message);
+      update.atsScore = await estimateAtsScore(update);
+    }
     const resume = await Resume.findByIdAndUpdate(req.params.id, update, { new: true });
     if (!resume) return res.status(404).json({ error: 'Resume not found' });
     res.json(resume);
@@ -166,6 +230,59 @@ export const downloadResumeFile = async (req, res) => {
     res.setHeader('Content-Type', 'application/octet-stream');
     res.download(filepath);
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Analyze resume with AI
+export const analyzeResume = async (req, res) => {
+  try {
+    const resume = await Resume.findById(req.params.id);
+    if (!resume) return res.status(404).json({ error: 'Resume not found' });
+    if (!resume.fileUrl) return res.status(400).json({ error: 'No file to analyze' });
+
+    // Check if analysis is cached and recent (less than 30 days old)
+    if (resume.aiAnalysis && resume.aiAnalysis.analyzedAt) {
+      const daysSinceAnalysis = (Date.now() - new Date(resume.aiAnalysis.analyzedAt)) / (1000 * 60 * 60 * 24);
+      if (daysSinceAnalysis < 30) {
+        return res.json(resume.aiAnalysis);
+      }
+    }
+
+    // Get file path and extract text
+    const filepath = path.join(process.cwd(), 'uploads', path.basename(resume.fileUrl));
+    
+    if (!fs.existsSync(filepath)) {
+      return res.status(404).json({ error: 'File not found on disk' });
+    }
+
+    // Extract resume text
+    const resumeText = await extractResumeText({ path: filepath });
+    
+    // Calculate ATS score
+    const result = calculateATSScore(resumeText);
+
+    // Prepare analysis response
+    const analysis = {
+      atsScore: result.atsScore,
+      strengths: [
+        `Found ${result.detectedSections.length} standard resume sections`,
+        `Detected ${result.matchedSkills.length} technical skills`,
+        `${result.actionVerbCount} action verbs used`,
+        `${result.numberCount} quantifiable metrics included`,
+      ],
+      improvements: result.suggestions,
+      keywords: result.matchedSkills.slice(0, 10),
+      analyzedAt: new Date(),
+    };
+
+    // Cache the analysis in the database
+    resume.aiAnalysis = analysis;
+    await resume.save();
+    
+    res.json(analysis);
+  } catch (error) {
+    console.error('Resume analysis error:', error);
     res.status(500).json({ error: error.message });
   }
 };

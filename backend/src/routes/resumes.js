@@ -1,47 +1,33 @@
 import express from 'express';
-import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
-import {
-  getResumes,
-  getResume,
-  createResume,
-  updateResume,
-  deleteResume,
-  setDefaultResume,
-  clearDefaultResume,
-  uploadResumeFile,
-  downloadResumeFile,
-} from '../controllers/resumeController.js';
+import resumeBuilderController from '../controllers/resumeBuilderController.js';
 
 const router = express.Router();
 
-// Ensure uploads directory exists
-const uploadsDir = path.join(process.cwd(), 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
+// ============ Resume CRUD Operations ============
+router.get('/', resumeBuilderController.getResumes);
+router.get('/templates', resumeBuilderController.getTemplates);
+router.post('/', resumeBuilderController.createResume);
+router.get('/:id', resumeBuilderController.getResume);
+router.put('/:id', resumeBuilderController.updateResume);
+router.delete('/:id', resumeBuilderController.deleteResume);
 
-// Multer storage: save to uploads folder with timestamp prefix
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadsDir),
-  filename: (req, file, cb) => {
-    const timestamp = Date.now();
-    const sanitized = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
-    cb(null, `${timestamp}_${sanitized}`);
-  },
-});
-const upload = multer({ storage });
+// ============ ATS Scoring & Optimization ============
+router.post('/:id/calculate-ats', resumeBuilderController.calculateAtsScore);
+router.post('/:id/optimize-for-job', resumeBuilderController.optimizeForJob);
+router.get('/:id/versions', resumeBuilderController.getVersionHistory);
+router.post('/:id/restore-version', resumeBuilderController.restoreVersion);
 
-router.get('/', getResumes);
-router.get('/:id', getResume);
-// Support multipart create with optional file
-router.post('/', upload.single('file'), createResume);
-router.put('/:id', updateResume);
-router.delete('/:id', deleteResume);
-router.patch('/:id/default', setDefaultResume);
-router.patch('/default/clear', clearDefaultResume);
-router.patch('/:id/file', upload.single('file'), uploadResumeFile);
-router.get('/:id/download', downloadResumeFile);
+// ============ AI Enhancement Features ============
+router.post('/:id/generate-summary', resumeBuilderController.generateSummary);
+router.post('/:id/optimize-bullet-points', resumeBuilderController.optimizeBulletPoints);
+router.post('/:id/suggest-skills', resumeBuilderController.suggestSkills);
+router.post('/:id/improve-clarity', resumeBuilderController.improveClarityAndGrammar);
+
+// ============ Export & Download ============
+router.get('/:id/export-pdf', resumeBuilderController.exportPDF);
+router.get('/:id/export-docx', resumeBuilderController.exportDOCX);
+
+// ============ Resume Management ============
+router.put('/:id/toggle-pin', resumeBuilderController.togglePin);
 
 export default router;

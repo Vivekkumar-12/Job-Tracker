@@ -12,6 +12,7 @@ import {
   Briefcase,
   Plus,
   LogOut,
+  FileEdit,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ const navItems = [
   { icon: FileText, label: "Applications", path: "/applications" },
   { icon: Search, label: "Job Search", path: "/search" },
   { icon: File, label: "Resumes", path: "/resumes" },
+  { icon: FileEdit, label: "Resume Builder", path: "/resume-builder" },
   { icon: Bell, label: "Reminders", path: "/reminders" },
   { icon: Settings, label: "Settings", path: "/settings" },
 ];

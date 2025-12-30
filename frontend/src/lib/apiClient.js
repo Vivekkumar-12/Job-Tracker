@@ -95,11 +95,6 @@ export const apiClient = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    createMultipart: (formData) =>
-      makeRequest(`${API_BASE_URL}/resumes`, {
-        method: 'POST',
-        body: formData,
-      }),
     update: (id, data) =>
       makeRequest(`${API_BASE_URL}/resumes/${id}`, {
         method: 'PUT',
@@ -109,25 +104,50 @@ export const apiClient = {
       makeRequest(`${API_BASE_URL}/resumes/${id}`, {
         method: 'DELETE',
       }),
-    setDefault: (id) =>
-      makeRequest(`${API_BASE_URL}/resumes/${id}/default`, {
-        method: 'PATCH',
+    // AI & ATS endpoints
+    calculateATS: (id, jobDescription) =>
+      makeRequest(`${API_BASE_URL}/resumes/${id}/calculate-ats`, {
+        method: 'POST',
+        body: JSON.stringify({ jobDescription }),
       }),
-    clearDefault: () =>
-      makeRequest(`${API_BASE_URL}/resumes/default/clear`, {
-        method: 'PATCH',
+    generateSummary: (id, jobRole) =>
+      makeRequest(`${API_BASE_URL}/resumes/${id}/generate-summary`, {
+        method: 'POST',
+        body: JSON.stringify({ jobRole }),
       }),
-    uploadFile: (id, file) => {
-      const form = new FormData();
-      form.append('file', file);
-      return makeRequest(`${API_BASE_URL}/resumes/${id}/file`, {
-        method: 'PATCH',
-        body: form,
+    optimizeBulletPoints: (id, payload) =>
+      makeRequest(`${API_BASE_URL}/resumes/${id}/optimize-bullet-points`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    suggestSkills: (id, role) =>
+      makeRequest(`${API_BASE_URL}/resumes/${id}/suggest-skills`, {
+        method: 'POST',
+        body: JSON.stringify({ role }),
+      }),
+    improveClarity: (id, text, field) =>
+      makeRequest(`${API_BASE_URL}/resumes/${id}/improve-clarity`, {
+        method: 'POST',
+        body: JSON.stringify({ text, field }),
+      }),
+    // Export endpoints (blob)
+    exportPDF: async (id) => {
+      const token = getAuthToken();
+      const res = await fetch(`${API_BASE_URL}/resumes/${id}/export-pdf`, {
+        method: 'GET',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.blob();
     },
-    downloadFile: (id) => {
-      // Return the download URL directly for use with window.location or <a> tag
-      return `${API_BASE_URL}/resumes/${id}/download`;
+    exportDOCX: async (id) => {
+      const token = getAuthToken();
+      const res = await fetch(`${API_BASE_URL}/resumes/${id}/export-docx`, {
+        method: 'GET',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.blob();
     },
   },
 

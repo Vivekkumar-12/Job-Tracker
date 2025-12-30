@@ -1,0 +1,7 @@
+/* Basic styling for resume editor */
+.resume-editor { display: grid; gap: 16px; }
+.editor-header { display: flex; justify-content: space-between; align-items: center; }
+.sections-tabs { margin-bottom: 12px; }
+.achievement-item { display: flex; gap: 8px; align-items: center; }
+.add-form { display: grid; gap: 8px; }
+.save-button { min-width: 160px; }
