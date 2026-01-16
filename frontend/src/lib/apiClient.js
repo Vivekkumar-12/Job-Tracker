@@ -95,10 +95,20 @@ export const apiClient = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+    createWithFile: (formData) =>
+      makeRequest(`${API_BASE_URL}/resumes`, {
+        method: 'POST',
+        body: formData,
+      }),
     update: (id, data) =>
       makeRequest(`${API_BASE_URL}/resumes/${id}`, {
         method: 'PUT',
         body: JSON.stringify(data),
+      }),
+    updateWithFile: (id, formData) =>
+      makeRequest(`${API_BASE_URL}/resumes/${id}`, {
+        method: 'PUT',
+        body: formData,
       }),
     delete: (id) =>
       makeRequest(`${API_BASE_URL}/resumes/${id}`, {

@@ -3,11 +3,13 @@
  * Handles all resume-related endpoints
  */
 
+import fs from 'fs';
+import path from 'path';
 import Resume from '../models/Resume.js';
-import resumeAtsScorer from '../services/resumeAtsScorer.js';
 import resumeAiEnhancer from '../services/resumeAiEnhancer.js';
 import resumeExportService from '../services/resumeExportService.js';
 import { analyzeResumeLocally } from '../services/localAts.js';
+import { scoreResumeFile } from '../services/universalAts.js';
 
 /**
  * GET /api/resumes - Get all resumes for a user
@@ -56,6 +58,7 @@ export const getResume = async (req, res) => {
  */
 export const createResume = async (req, res) => {
   try {
+    const file = req.file;
     const { title, templateId, personalInfo } = req.body;
 
     const resume = new Resume({
@@ -72,6 +75,14 @@ export const createResume = async (req, res) => {
       customSections: [],
       sections: []
     });
+
+    // Handle file upload if provided
+    if (file) {
+      resume.filename = file.originalname;
+      resume.fileSize = file.size;
+      resume.fileUrl = `${req.protocol}://${req.get('host')}/uploads/${file.filename}`;
+      console.log(`[CREATE RESUME] File uploaded: ${file.originalname} -> ${file.filename}`);
+    }
 
     await resume.save();
 
@@ -110,6 +121,16 @@ export const updateResume = async (req, res) => {
         resume[key] = updateData[key];
       }
     });
+
+    // Handle file upload if provided
+    const file = req.file;
+    if (file) {
+      resume.filename = file.originalname;
+      resume.fileSize = file.size;
+      resume.fileUrl = `${req.protocol}://${req.get('host')}/uploads/${file.filename}`;
+      changedFields.push('filename', 'fileSize', 'fileUrl');
+      console.log(`[UPDATE RESUME] File uploaded: ${file.originalname} -> ${file.filename}`);
+    }
 
     // Create version snapshot before saving
     if (changedFields.length > 0) {
@@ -167,24 +188,57 @@ export const calculateAtsScore = async (req, res) => {
       return res.status(404).json({ error: 'Resume not found' });
     }
 
-    // Calculate ATS score
-    const atsScore = await resumeAtsScorer.scoreResume(resume, jobDescription);
+    // Require an uploaded file to score locally
+    if (!resume.fileUrl) {
+      console.error('[ATS] No fileUrl on resume:', resume._id);
+      return res.status(400).json({ error: 'No resume file found. Please upload a PDF or DOCX.' });
+    }
 
-    // Update resume with ATS score
+    // Extract filename from URL or use it directly if it's just a filename
+    let storedFilename = resume.fileUrl;
+    if (resume.fileUrl.includes('/')) {
+      storedFilename = path.basename(resume.fileUrl);
+    }
+    const filePath = path.join(process.cwd(), 'uploads', storedFilename);
+
+    console.log('[ATS] Checking file:', {
+      fileUrl: resume.fileUrl,
+      storedFilename,
+      filePath,
+      exists: fs.existsSync(filePath)
+    });
+
+    if (!fs.existsSync(filePath)) {
+      console.error('[ATS] File not found at:', filePath);
+      return res.status(404).json({ error: `Uploaded resume file is missing on server. Expected at: ${filePath}` });
+    }
+
+    // Calculate ATS score offline using universal scorer
+    console.log('[ATS] Starting scoreResumeFile:', { filePath, resumeTitle: resume.title });
+    const atsResult = await scoreResumeFile({
+      filePath,
+      jobDescription: jobDescription || '',
+      jobTitle: resume.title || ''
+    });
+    console.log('[ATS] Full result with breakdown:', JSON.stringify(atsResult, null, 2));
+
+    // Persist schema-friendly ATS data
     resume.atsScore = {
-      ...atsScore,
+      overallScore: atsResult.atsScore,
       lastCalculated: new Date(),
-      jobDescription: jobDescription || ''
+      jobDescription: jobDescription || '',
+      breakdown: atsResult.breakdown
     };
-
     await resume.save();
+    console.log('[ATS] Saved to resume:', resume.atsScore);
 
     res.json({
       success: true,
-      message: 'ATS score calculated',
-      data: atsScore
+      message: 'ATS score calculated locally',
+      data: atsResult
     });
   } catch (error) {
+    console.error('[ATS] Error in calculateAtsScore:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -577,6 +631,65 @@ export const analyzeResumeFile = async (req, res) => {
   }
 };
 
+/**
+ * POST /api/resumes/:id/analyze - Analyze existing resume and provide suggestions
+ */
+export const analyzeExistingResume = async (req, res) => {
+  try {
+    const resume = await Resume.findOne({
+      _id: req.params.id,
+      userId: req.user.id
+    });
+
+    if (!resume) {
+      return res.status(404).json({ error: 'Resume not found' });
+    }
+
+    if (!resume.fileUrl) {
+      return res.status(400).json({ error: 'No file attached to this resume' });
+    }
+
+    // Extract filename from URL
+    let storedFilename = resume.fileUrl;
+    if (resume.fileUrl.includes('/')) {
+      storedFilename = path.basename(resume.fileUrl);
+    }
+    const filePath = path.join(process.cwd(), 'uploads', storedFilename);
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Resume file not found on server' });
+    }
+
+    // Analyze the resume
+    const analysis = await analyzeResumeLocally(filePath);
+
+    // Format issues and corrections
+    const issues = analysis.improvements.map((imp, idx) => ({
+      type: idx % 3 === 0 ? 'error' : idx % 2 === 0 ? 'warning' : 'info',
+      text: imp
+    }));
+
+    const corrections = analysis.improvements.slice(0, 5).map(imp => 
+      imp.replace(/^Add /, 'Consider adding ').replace(/^Include /, 'Try including ')
+    );
+
+    res.json({
+      success: true,
+      data: {
+        score: Math.min(100, Math.max(0, Math.round(analysis.atsScore))),
+        totalIssues: analysis.improvements.length,
+        issues,
+        corrections,
+        strengths: analysis.strengths,
+        keywords: analysis.keywords || []
+      }
+    });
+  } catch (error) {
+    console.error('[ANALYZE] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export default {
   getResumes,
   getResume,
@@ -595,5 +708,6 @@ export default {
   restoreVersion,
   togglePin,
   getTemplates,
-  analyzeResumeFile
+  analyzeResumeFile,
+  analyzeExistingResume
 };

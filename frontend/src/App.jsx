@@ -10,7 +10,6 @@ import Index from "./pages/Index";
 import Applications from "./pages/Applications";
 import JobSearch from "./pages/JobSearch";
 import Resumes from "./pages/Resumes";
-import ResumeBuilder from "./pages/ResumeBuilder.jsx";
 import Reminders from "./pages/Reminders";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
@@ -62,14 +61,6 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <Resumes />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/resume-builder"
-                element={
-                  <ProtectedRoute>
-                    <ResumeBuilder />
                   </ProtectedRoute>
                 }
               />

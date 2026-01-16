@@ -151,6 +151,11 @@ const resumeSchema = new mongoose.Schema({
     theme: { type: String, default: 'clean' }
   },
 
+  // File Upload Fields
+  filename: String,
+  fileSize: Number,
+  fileUrl: String,
+
   // Metadata
   isPublic: { type: Boolean, default: false },
   isPinned: { type: Boolean, default: false },

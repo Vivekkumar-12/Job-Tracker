@@ -1,0 +1,140 @@
+// REPLACEMENT CODE FOR Resumes.jsx
+// This fixes the ATS scoring on upload and edit
+
+// 1. REPLACE triggerLocalAtsScore function (line ~59-74) WITH THIS:
+
+const triggerLocalAtsScore = async (resumeId, titleForLog = '') => {
+  if (!resumeId) {
+    console.warn('[ATS] No resume ID provided');
+    return null;
+  }
+  try {
+    console.log(`[ATS] Triggering ATS score for: ${titleForLog || resumeId}`);
+    const resp = await apiClient.resumes.calculateATS(resumeId, '');
+    console.log('[ATS] Full response:', resp);
+    
+    // Backend response: { success, message, data: { atsScore, grade, recommendation, ... } }
+    const atsData = resp?.data;
+    if (atsData && atsData.atsScore !== undefined) {
+      const scoreNum = Math.round(atsData.atsScore);
+      console.log(`[ATS] ✓ Calculated: ${scoreNum}% for "${titleForLog}"`);
+      return scoreNum;
+    }
+    
+    console.warn('[ATS] No atsScore found in response');
+    return null;
+  } catch (err) {
+    console.error('[ATS] ✗ Failed:', err?.message || err);
+    return null;
+  }
+};
+
+// 2. REPLACE the entire handleCreate function (around line 150-188) WITH THIS:
+
+const handleCreate = async () => {
+  if (!newTitle && !newFile) {
+    setError("Please add a title or upload a file");
+    return;
+  }
+
+  try {
+    setError("");
+    let createdResponse;
+    if (newFile) {
+      const form = new FormData();
+      if (newTitle) form.append("title", newTitle);
+      form.append("file", newFile);
+      createdResponse = await apiClient.resumes.createWithFile(form);
+    } else {
+      createdResponse = await apiClient.resumes.create({ title: newTitle, filename: `${newTitle}.pdf` });
+    }
+    // Extract the resume from the response
+    let created = createdResponse?.data || createdResponse;
+    const resumeId = getResumeId(created);
+
+    // Auto-run ATS scoring if a file was uploaded
+    if (newFile && resumeId) {
+      console.log(`[CREATE] Starting ATS for new resume ${resumeId}`);
+      const atsScore = await triggerLocalAtsScore(resumeId, created?.title);
+      if (atsScore !== null) {
+        console.log(`[CREATE] Got ATS score: ${atsScore}, updating item`);
+        created = { ...created, atsScore };
+      }
+      
+      // Reload from DB to get persisted ATS score
+      try {
+        const reloaded = await apiClient.resumes.get(resumeId);
+        if (reloaded?.atsScore) {
+          console.log(`[CREATE] DB has atsScore:`, reloaded.atsScore);
+          created = { ...created, ...reloaded };
+        }
+      } catch (reloadErr) {
+        console.warn('[CREATE] Could not reload resume:', reloadErr?.message);
+      }
+    }
+
+    setItems((prev) => {
+      console.log('[CREATE] Final item to add:', created);
+      return [created, ...prev];
+    });
+    setOpenCreate(false);
+    setNewTitle("");
+    setNewFile(null);
+  } catch (e) {
+    setError(e?.message || "Failed to create resume");
+  }
+};
+
+// 3. REPLACE the entire handleSaveEditResume function (around line 206-244) WITH THIS:
+
+const handleSaveEditResume = async () => {
+  if (!editingResume) return;
+  const resumeId = getResumeId(editingResume);
+  if (!resumeId) {
+    setError("Resume ID not found. Please refresh and try again.");
+    return;
+  }
+  try {
+    let updatedResponse;
+    if (editResumeFile) {
+      const form = new FormData();
+      if (editResumeTitle) form.append("title", editResumeTitle);
+      form.append("file", editResumeFile);
+      updatedResponse = await apiClient.resumes.updateWithFile(resumeId, form);
+    } else {
+      updatedResponse = await apiClient.resumes.update(resumeId, {
+        title: editResumeTitle,
+      });
+    }
+    // Extract the resume from the response
+    let updated = updatedResponse?.data || updatedResponse;
+
+    // Auto-run ATS scoring if a new file was uploaded
+    if (editResumeFile && resumeId) {
+      console.log(`[EDIT] Starting ATS for resume ${resumeId}`);
+      const atsScore = await triggerLocalAtsScore(resumeId, editResumeTitle);
+      if (atsScore !== null) {
+        console.log(`[EDIT] Got ATS score: ${atsScore}, updating item`);
+        updated = { ...updated, atsScore };
+      }
+      
+      // Reload from DB to get persisted ATS score
+      try {
+        const reloaded = await apiClient.resumes.get(resumeId);
+        if (reloaded?.atsScore) {
+          console.log(`[EDIT] DB has atsScore:`, reloaded.atsScore);
+          updated = { ...reloaded };
+        }
+      } catch (reloadErr) {
+        console.warn('[EDIT] Could not reload resume:', reloadErr?.message);
+      }
+    }
+
+    setItems((prev) => prev.map((r) => (getResumeId(r) === resumeId ? updated : r)));
+    setOpenEditResume(false);
+    setEditingResume(null);
+    setEditResumeFile(null);
+  } catch (e) {
+    setError(e?.message || "Failed to update resume");
+  }
+};
