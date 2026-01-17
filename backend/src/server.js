@@ -8,6 +8,7 @@ import applicationRoutes from './routes/applications.js';
 import resumeRoutes from './routes/resumes.js';
 import reminderRoutes from './routes/reminders.js';
 import jobListingRoutes from './routes/jobListings.js';
+import coverLetterRoutes from './routes/coverLetters.js';
 import searchRoutes from './routes/search.js';
 import path from 'path';
 
@@ -37,6 +38,7 @@ app.use('/api/auth', authRoutes);
 // Protected API Routes (require authentication)
 app.use('/api/applications', verifyToken, applicationRoutes);
 app.use('/api/resumes', verifyToken, resumeRoutes);
+app.use('/api/cover-letters', verifyToken, coverLetterRoutes);
 app.use('/api/reminders', verifyToken, reminderRoutes);
 app.use('/api/job-listings', verifyToken, jobListingRoutes);
 app.use('/api/search', searchRoutes);

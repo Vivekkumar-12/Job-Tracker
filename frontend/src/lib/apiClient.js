@@ -161,6 +161,45 @@ export const apiClient = {
     },
   },
 
+  // Cover Letters
+  coverLetters: {
+    getAll: () => makeRequest(`${API_BASE_URL}/cover-letters`),
+    get: (id) => makeRequest(`${API_BASE_URL}/cover-letters/${id}`),
+    create: (data) =>
+      makeRequest(`${API_BASE_URL}/cover-letters`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    createWithFile: (formData) =>
+      makeRequest(`${API_BASE_URL}/cover-letters`, {
+        method: 'POST',
+        body: formData,
+      }),
+    update: (id, data) =>
+      makeRequest(`${API_BASE_URL}/cover-letters/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    updateWithFile: (id, formData) =>
+      makeRequest(`${API_BASE_URL}/cover-letters/${id}`, {
+        method: 'PUT',
+        body: formData,
+      }),
+    delete: (id) =>
+      makeRequest(`${API_BASE_URL}/cover-letters/${id}`, {
+        method: 'DELETE',
+      }),
+    extractContent: (id) =>
+      makeRequest(`${API_BASE_URL}/cover-letters/${id}/extract-content`, {
+        method: 'POST',
+      }),
+    extractTextFromFile: (formData) =>
+      makeRequest(`${API_BASE_URL}/cover-letters/extract-text`, {
+        method: 'POST',
+        body: formData,
+      }),
+  },
+
   // Reminders
   reminders: {
     getAll: () => makeRequest(`${API_BASE_URL}/reminders`),

@@ -1,8 +1,7 @@
 import fs from 'fs';
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-const pdfParse = require('pdf-parse');
-const mammoth = require('mammoth');
+import { PDFParse } from 'pdf-parse';
+import * as mammothModule from 'mammoth';
+const mammoth = mammothModule.default || mammothModule;
 
 const TECH_KEYWORDS = [
   'javascript', 'react', 'node', 'typescript', 'java', 'python', 'css', 'html',

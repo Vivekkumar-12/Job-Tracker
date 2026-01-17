@@ -39,6 +39,7 @@ const getResumeUrl = (resume) => {
 };
 
 const getResumeId = (resume) => resume?._id || resume?.id || null;
+const getCoverLetterId = (letter) => letter?._id || letter?.id || null;
 
 const getFileExtension = (filename) => {
   if (!filename) return null;
@@ -120,26 +121,65 @@ const Resumes = () => {
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
   const [selectedResumeForAI, setSelectedResumeForAI] = useState(null);
 
-  const [coverLetters, setCoverLetters] = useState([
-    {
-      id: 1,
-      name: "General Tech Cover Letter",
-      lastModified: "2024-01-14",
-      usedFor: 15,
-      fileUrl: "http://localhost:5000/uploads/General%20Tech%20Cover%20Letter%20template..pdf",
-      isProtected: true,
-    },
-    {
-      id: 2,
-      name: "Startup Cover Letter",
-      lastModified: "2024-01-10",
-      usedFor: 6,
-      fileUrl: "http://localhost:5000/uploads/Startup%20Cover%20Letter%20Template.pdf",
-      isProtected: true,
-    },
-  ]);
+  // Load cover letters from localStorage or use defaults
+  const getInitialCoverLetters = () => {
+    // Return default templates (do not persist in localStorage)
+    return [
+      {
+        id: 1,
+        name: "General Tech Cover Letter",
+        lastModified: "2024-01-14",
+        usedFor: 15,
+        fileUrl: "http://localhost:5000/uploads/General%20Tech%20Cover%20Letter%20template..pdf",
+        isProtected: true,
+        content: `Dear Hiring Manager,
+
+I am writing to express my strong interest in the Software Engineering position at your company. With my extensive background in full-stack development and passion for creating innovative solutions, I am confident I would be a valuable addition to your team.
+
+Throughout my career, I have developed expertise in modern technologies including React, Node.js, and cloud platforms. My experience includes:
+• Building scalable web applications that serve thousands of users
+• Implementing robust backend systems with RESTful APIs
+• Collaborating with cross-functional teams to deliver high-quality products
+• Optimizing application performance and user experience
+
+I am particularly drawn to your company's commitment to innovation and excellence. I believe my technical skills, problem-solving abilities, and dedication to continuous learning align well with your team's values.
+
+I would welcome the opportunity to discuss how my experience and skills can contribute to your team's success. Thank you for considering my application.
+
+Best regards,
+[Your Name]`,
+      },
+      {
+        id: 2,
+        name: "Startup Cover Letter",
+        lastModified: "2024-01-10",
+        usedFor: 6,
+        fileUrl: "http://localhost:5000/uploads/Startup%20Cover%20Letter%20Template.pdf",
+        isProtected: true,
+        content: `Hi [Hiring Manager Name],
+
+I'm excited to apply for the [Position] role at [Company Name]. Your mission to [company mission] resonates deeply with me, and I'm eager to contribute to your growth.
+
+As someone who thrives in fast-paced environments, I've been following your journey and am impressed by [specific achievement or product]. My background includes:
+• Wearing multiple hats and taking ownership of projects from concept to launch
+• Rapid prototyping and iterating based on user feedback
+• Building MVPs with limited resources and tight deadlines
+• Contributing to all aspects of product development
+
+I'm not just looking for a job—I'm looking to join a team where I can make a real impact. Your startup's focus on [specific area] aligns perfectly with my skills and passion.
+
+I'd love to chat about how I can help [Company Name] achieve its goals. Are you available for a quick call this week?
+
+Looking forward to connecting,
+[Your Name]`,
+      },
+    ];
+  };
+
+  const [coverLetters, setCoverLetters] = useState(getInitialCoverLetters);
   const [openEditCoverLetter, setOpenEditCoverLetter] = useState(false);
   const [editingCoverLetter, setEditingCoverLetter] = useState(null);
+  const [editCoverLetterName, setEditCoverLetterName] = useState("");
   const [editCoverLetterContent, setEditCoverLetterContent] = useState("");
   const [editCoverLetterFormat, setEditCoverLetterFormat] = useState("pdf");
   const [editCoverLetterFile, setEditCoverLetterFile] = useState(null);
@@ -161,6 +201,69 @@ const Resumes = () => {
 
   useEffect(() => {
     loadResumes();
+  }, []);
+
+  // Removed localStorage persistence to avoid keeping state across refresh
+
+  // Load cover letters from API when available (fallback to localStorage)
+  useEffect(() => {
+    const loadCoverLetters = async () => {
+      try {
+        const resp = await apiClient.coverLetters.getAll();
+        const list = Array.isArray(resp?.data) ? resp.data : (Array.isArray(resp) ? resp : []);
+        if (list.length) {
+          // Merge server list with existing local cover letters
+          const serverById = new Map();
+          const serverByName = new Map();
+          for (const item of list) {
+            const sid = getCoverLetterId(item);
+            if (sid) serverById.set(String(sid), item);
+            if (item?.name) serverByName.set(item.name.toLowerCase(), item);
+          }
+
+          let merged = [...list];
+          // Always include protected defaults at the top, regardless of server duplicates
+          for (const localItem of Array.isArray(coverLetters) ? coverLetters : []) {
+            const lid = getCoverLetterId(localItem);
+            const lname = localItem?.name?.toLowerCase();
+            if (localItem.isProtected) {
+              merged.unshift(localItem);
+              continue;
+            }
+            // Keep local items not present on server (by id or by name)
+            if (lid && !serverById.has(String(lid))) {
+              merged.push(localItem);
+              continue;
+            }
+            if (!lid) {
+              if (!lname || !serverByName.has(lname)) {
+                merged.push(localItem);
+              }
+            }
+          }
+
+          setCoverLetters(merged);
+
+          // Auto-extract content for items that only have fileUrl
+          const toExtract = merged.filter((item) => !item.content && item.fileUrl && getCoverLetterId(item));
+          for (const item of toExtract) {
+            const id = getCoverLetterId(item);
+            try {
+              const r = await apiClient.coverLetters.extractContent(id);
+              const saved = r?.data || r;
+              if (saved?.content) {
+                setCoverLetters((prev) => prev.map((l) => (getCoverLetterId(l) === id ? saved : l)));
+              }
+            } catch (err) {
+              console.warn('[CoverLetters] extractContent on load failed:', err?.message);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[CoverLetters] API fetch failed, using localStorage:', e?.message);
+      }
+    };
+    loadCoverLetters();
   }, []);
 
   const handleCreate = async () => {
@@ -381,60 +484,174 @@ const Resumes = () => {
 
   const handleEditCoverLetter = (letter) => {
     setEditingCoverLetter(letter);
-    setEditCoverLetterContent(letter.content || "");
-    setEditCoverLetterFormat("pdf");
+    
+    // Load existing content from letter.content (which should have been set when uploaded)
+    let existingContent = letter.content || "";
+    
+    // If no content and only fileUrl exists (template files), provide a placeholder
+    if (!existingContent && letter.fileUrl) {
+      existingContent = `[Original file: ${letter.name}]\n\nLoading content from file...`;
+    }
+    
+    setEditCoverLetterName(letter.name || "");
+    setEditCoverLetterContent(existingContent);
+    setEditCoverLetterFormat(letter.format || "pdf");
     setEditCoverLetterFile(null);
     setOpenEditCoverLetter(true);
+
+    // If we have a server id and no content but a file, try extracting content from server
+    const id = getCoverLetterId(letter);
+    if (!letter.content && letter.fileUrl && id) {
+      apiClient.coverLetters.extractContent(id)
+        .then((resp) => {
+          const saved = resp?.data || resp;
+          if (saved?.content) {
+            setEditCoverLetterContent(saved.content);
+            setCoverLetters((prev) => prev.map((l) => (getCoverLetterId(l) === id ? saved : l)));
+            toast({ title: "Content loaded", description: "Extracted text from the original file." });
+          }
+        })
+        .catch((e) => {
+          console.warn('[CoverLetters] extractContent failed:', e?.message);
+          // Keep placeholder, user can type or upload a text file
+        });
+    }
   };
 
-  const handleSaveEditCoverLetter = () => {
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0] || null;
+    setEditCoverLetterFile(file);
+    
+    if (!file) return;
+    
+    // Check if it's a text file that we can read directly
+    const isTextFile = file.type.startsWith('text/') || file.name.endsWith('.txt');
+    
+    if (isTextFile) {
+      // Read the file content and update the textarea
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target.result || '';
+        setEditCoverLetterContent(content);
+        toast({
+          title: "File loaded",
+          description: `Loaded ${content.length} characters from ${file.name}`,
+        });
+      };
+      reader.onerror = () => {
+        toast({
+          title: "File read error",
+          description: "Could not read file content.",
+          variant: "destructive",
+        });
+      };
+      reader.readAsText(file);
+    } else {
+      // Non-text files are not supported for cover letters
+      setEditCoverLetterFile(null);
+      toast({
+        title: "Unsupported file type",
+        description: "Please upload a .txt file. PDF/DOCX parsing is currently unavailable.",
+        variant: "destructive",
+      });
+      return;
+    }
+  };
+
+  const handleUpdateCoverLetter = () => {
     if (!editingCoverLetter) return;
-    const existingNames = coverLetters.map((l) => l.name);
-    const duplicateName = generateDuplicateName(editingCoverLetter.name, existingNames);
-
-    let uploadedFileData = null;
-    let uploadedFileName = null;
-    let uploadedFileType = null;
-
+    
+    // Update existing cover letter
     if (editCoverLetterFile) {
-      uploadedFileName = editCoverLetterFile.name;
-      uploadedFileType = editCoverLetterFile.type;
+      // Check if it's a text file
+      const isTextFile = editCoverLetterFile.type.startsWith('text/') || 
+                         editCoverLetterFile.name.endsWith('.txt');
+      
       const reader = new FileReader();
       reader.onload = () => {
-        uploadedFileData = reader.result;
-        const newLetter = {
+        const updatedLetter = {
           ...editingCoverLetter,
-          id: Date.now(),
-          name: duplicateName,
-          content: editCoverLetterContent || editingCoverLetter.content,
+          name: editCoverLetterName || editingCoverLetter.name,
+          content: isTextFile ? reader.result : editCoverLetterContent,
           format: editCoverLetterFormat,
           lastModified: new Date().toISOString().split("T")[0],
-          usedFor: 0,
-          isProtected: false,
-          fileUrl: editingCoverLetter.fileUrl || null,
-          uploadedFileData,
-          uploadedFileName,
-          uploadedFileType,
+          uploadedFileData: reader.result,
+          uploadedFileName: editCoverLetterFile.name,
+          uploadedFileType: editCoverLetterFile.type,
         };
-        setCoverLetters((prev) => [...prev, newLetter]);
+        const id = getCoverLetterId(editingCoverLetter);
+        const doLocalUpdate = () => {
+          setCoverLetters((prev) => prev.map((l) => (getCoverLetterId(l) === id ? { ...updatedLetter, _id: id } : l)));
+        };
+        const finish = () => {
+          setOpenEditCoverLetter(false);
+          setEditingCoverLetter(null);
+          setEditCoverLetterName("");
+          setEditCoverLetterContent("");
+          setEditCoverLetterFormat("pdf");
+          setEditCoverLetterFile(null);
+          toast({ title: "Cover letter updated", description: "Your changes have been saved successfully." });
+        };
+        if (id) {
+          const form = new FormData();
+          form.append('name', editCoverLetterName || editingCoverLetter.name || 'My Cover Letter');
+          form.append('content', updatedLetter.content || '');
+          form.append('file', editCoverLetterFile);
+          apiClient.coverLetters.updateWithFile(id, form)
+            .then((resp) => {
+              const saved = resp?.data || resp;
+              setCoverLetters((prev) => prev.map((l) => (getCoverLetterId(l) === id ? saved : l)));
+              // Update editingCoverLetter to refresh the "Current File" tag
+              setEditingCoverLetter(saved);
+              finish();
+            })
+            .catch((e) => {
+              console.warn('[CoverLetters] Update with file failed, using local:', e?.message);
+              doLocalUpdate();
+              finish();
+            });
+        } else {
+          doLocalUpdate();
+          finish();
+        }
       };
-      reader.readAsDataURL(editCoverLetterFile);
+      // Read as text if it's a text file, otherwise as data URL
+      if (isTextFile) {
+        reader.readAsText(editCoverLetterFile);
+      } else {
+        reader.readAsDataURL(editCoverLetterFile);
+      }
     } else {
-      const newLetter = {
+      const updatedLetter = {
         ...editingCoverLetter,
-        id: Date.now(),
-        name: duplicateName,
-        content: editCoverLetterContent || editingCoverLetter.content,
+        name: editCoverLetterName || editingCoverLetter.name,
+        content: editCoverLetterContent,
         format: editCoverLetterFormat,
         lastModified: new Date().toISOString().split("T")[0],
-        usedFor: 0,
-        isProtected: false,
-        fileUrl: editingCoverLetter.fileUrl || null,
-        uploadedFileData,
-        uploadedFileName,
-        uploadedFileType,
       };
-      setCoverLetters((prev) => [...prev, newLetter]);
+      const id = getCoverLetterId(editingCoverLetter);
+      if (id) {
+        apiClient.coverLetters.update(id, {
+          name: updatedLetter.name,
+          content: updatedLetter.content,
+          isProtected: updatedLetter.isProtected,
+          usedFor: updatedLetter.usedFor,
+        })
+          .then((resp) => {
+            const saved = resp?.data || resp;
+            setCoverLetters((prev) => prev.map((l) => (getCoverLetterId(l) === id ? saved : l)));
+          })
+          .catch((e) => {
+            console.warn('[CoverLetters] Update failed, using local:', e?.message);
+            setCoverLetters((prev) => prev.map((l) => (getCoverLetterId(l) === id ? { ...updatedLetter, _id: id } : l)));
+          })
+          .finally(() => {
+            toast({ title: "Cover letter updated", description: "Your changes have been saved successfully." });
+          });
+      } else {
+        setCoverLetters((prev) => prev.map((l) => (getCoverLetterId(l) === id ? { ...updatedLetter, _id: id } : l)));
+        toast({ title: "Cover letter updated", description: "Your changes have been saved locally." });
+      }
     }
 
     setOpenEditCoverLetter(false);
@@ -444,7 +661,85 @@ const Resumes = () => {
     setEditCoverLetterFile(null);
   };
 
-  const handleDownloadCoverLetter = (letter) => {
+  const handleSaveEditCoverLetter = () => {
+    if (!editingCoverLetter) return;
+    const existingNames = coverLetters.map((l) => l.name);
+    const duplicateName = generateDuplicateName(editingCoverLetter.name, existingNames);
+
+    if (editCoverLetterFile) {
+      // NEW FILE UPLOADED - create with new file, ignore old file metadata
+      const form = new FormData();
+      form.append('name', editCoverLetterName || duplicateName);
+      form.append('content', editCoverLetterContent || '');
+      form.append('file', editCoverLetterFile);
+      
+      apiClient.coverLetters.createWithFile(form)
+        .then((resp) => {
+          const saved = resp?.data || resp;
+          setCoverLetters((prev) => [saved, ...prev]);
+          toast({ title: "Cover letter copied", description: `Created new copy: ${duplicateName}` });
+        })
+        .catch((e) => {
+          console.warn('[CoverLetters] Create with file failed, saving locally:', e?.message);
+          // Local fallback with new file name
+          const newLetter = {
+            id: Date.now(),
+            name: duplicateName,
+            content: editCoverLetterContent || '',
+            format: editCoverLetterFormat,
+            lastModified: new Date().toISOString().split("T")[0],
+            usedFor: 0,
+            isProtected: false,
+            fileUrl: null,
+            uploadedFileName: editCoverLetterFile.name,
+            uploadedFileType: editCoverLetterFile.type,
+          };
+          setCoverLetters((prev) => [newLetter, ...prev]);
+          toast({ title: "Cover letter copied (local)", description: `Created: ${duplicateName}` });
+        })
+        .finally(() => {
+          setOpenEditCoverLetter(false);
+          setEditingCoverLetter(null);
+          setEditCoverLetterContent("");
+          setEditCoverLetterFormat("pdf");
+          setEditCoverLetterFile(null);
+        });
+    } else {
+      // NO NEW FILE - duplicate with content only, clear old file references
+      const newLetter = {
+        id: Date.now(),
+        name: editCoverLetterName || duplicateName,
+        content: editCoverLetterContent || editingCoverLetter.content || '',
+        format: editCoverLetterFormat,
+        lastModified: new Date().toISOString().split("T")[0],
+        usedFor: 0,
+        isProtected: false,
+        fileUrl: null,
+        // Do not copy old file metadata when no new file
+      };
+      apiClient.coverLetters.create({ name: newLetter.name, content: newLetter.content })
+        .then((resp) => {
+          const saved = resp?.data || resp;
+          setCoverLetters((prev) => [saved, ...prev]);
+          toast({ title: "Cover letter copied", description: `Created new copy: ${duplicateName}` });
+        })
+        .catch((e) => {
+          console.warn('[CoverLetters] Create failed, saving locally:', e?.message);
+          setCoverLetters((prev) => [newLetter, ...prev]);
+          toast({ title: "Cover letter copied (local)", description: `Created: ${duplicateName}` });
+        })
+        .finally(() => {
+          setOpenEditCoverLetter(false);
+          setEditingCoverLetter(null);
+          setEditCoverLetterName("");
+          setEditCoverLetterContent("");
+          setEditCoverLetterFormat("pdf");
+          setEditCoverLetterFile(null);
+        });
+    }
+  };
+
+  const handleDownloadCoverLetter = async (letter) => {
     if (letter.uploadedFileData) {
       const link = document.createElement("a");
       link.href = letter.uploadedFileData;
@@ -453,22 +748,108 @@ const Resumes = () => {
       link.click();
       document.body.removeChild(link);
     } else if (letter.content && !letter.fileUrl) {
-      const blob = new Blob([letter.content], { type: "text/plain" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${letter.name}.${letter.format || "txt"}`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      const format = letter.format || "txt";
+      
+      if (format === "pdf") {
+        // Create PDF using simple approach
+        try {
+          const { jsPDF } = await import('jspdf');
+          const doc = new jsPDF();
+          const pageWidth = doc.internal.pageSize.getWidth();
+          const margin = 20;
+          const maxWidth = pageWidth - 2 * margin;
+          
+          // Split text into lines that fit
+          const lines = doc.splitTextToSize(letter.content, maxWidth);
+          doc.text(lines, margin, 20);
+          
+          doc.save(`${letter.name}.pdf`);
+        } catch (err) {
+          console.error('Error creating PDF:', err);
+          toast({
+            title: "PDF creation failed",
+            description: "Downloading as text file instead.",
+            variant: "destructive",
+          });
+          // Fallback to text
+          const blob = new Blob([letter.content], { type: "text/plain" });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = `${letter.name}.txt`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        }
+      } else if (format === "docx") {
+        // Create DOCX using docx library
+        try {
+          const docx = await import('docx');
+          const { Document, Packer, Paragraph, TextRun } = docx;
+          
+          // Split content into paragraphs, handling empty lines
+          const paragraphs = letter.content.split('\n').map(line => 
+            new Paragraph({
+              children: [new TextRun(line || ' ')], // Empty lines need at least a space
+            })
+          );
+          
+          const doc = new Document({
+            sections: [{
+              properties: {},
+              children: paragraphs,
+            }],
+          });
+          
+          const blob = await Packer.toBlob(doc);
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = `${letter.name}.docx`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        } catch (err) {
+          console.error('Error creating DOCX:', err);
+          toast({
+            title: "DOCX creation failed",
+            description: "Please check console for details. Downloading as text file instead.",
+            variant: "destructive",
+          });
+          // Fallback to text
+          const blob = new Blob([letter.content], { type: "text/plain" });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = `${letter.name}.txt`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        }
+      } else {
+        // Text or HTML format
+        const mimeType = format === "html" ? "text/html" : "text/plain";
+        const blob = new Blob([letter.content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `${letter.name}.${format}`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
     } else if (letter.fileUrl) {
       window.open(letter.fileUrl, "_blank");
     }
 
+    const targetId = getCoverLetterId(letter);
     setCoverLetters((prev) =>
       prev.map((l) =>
-        l.id === letter.id
+        getCoverLetterId(l) === targetId
           ? { ...l, usedFor: (l.usedFor || 0) + 1, lastModified: new Date().toISOString().split("T")[0] }
           : l
       )
@@ -486,12 +867,42 @@ const Resumes = () => {
       lastModified: new Date().toISOString().split("T")[0],
       usedFor: 0,
       isProtected: false,
+      // Preserve all file-related data
+      content: letter.content,
+      uploadedFileData: letter.uploadedFileData,
+      uploadedFileName: letter.uploadedFileName,
+      uploadedFileType: letter.uploadedFileType,
+      fileUrl: letter.fileUrl,
     };
-    setCoverLetters((prev) => [...prev, newLetter]);
+    apiClient.coverLetters.create({ name: newLetter.name, content: newLetter.content || '' })
+      .then((resp) => {
+        const saved = resp?.data || resp;
+        setCoverLetters((prev) => [...prev, saved]);
+      })
+      .catch((e) => {
+        console.warn('[CoverLetters] Duplicate (create) failed, saving locally:', e?.message);
+        setCoverLetters((prev) => [...prev, newLetter]);
+      })
+      .finally(() => {
+        toast({ title: "Cover letter duplicated", description: `Created: ${newName}` });
+      });
   };
 
-  const handleDeleteCoverLetter = (id) => {
-    setCoverLetters((prev) => prev.filter((letter) => letter.id !== id || letter.isProtected));
+  const handleDeleteCoverLetter = (letter) => {
+    const id = getCoverLetterId(letter);
+    if (!id) {
+      // Local-only item
+      setCoverLetters((prev) => prev.filter((l) => getCoverLetterId(l) !== id));
+      return;
+    }
+    apiClient.coverLetters.delete(id)
+      .then(() => {
+        setCoverLetters((prev) => prev.filter((l) => getCoverLetterId(l) !== id));
+      })
+      .catch((e) => {
+        console.warn('[CoverLetters] Delete failed, removing locally:', e?.message);
+        setCoverLetters((prev) => prev.filter((l) => getCoverLetterId(l) !== id));
+      });
   };
 
   return (
@@ -641,7 +1052,7 @@ const Resumes = () => {
               <div className="space-y-4">
                 <h2 className="text-lg font-semibold pt-4 opacity-0 animate-fade-in animation-delay-200">Cover Letters ({coverLetters.length})</h2>
                 {coverLetters.map((letter, idx) => (
-                  <Card key={letter.id} className="glass glass-hover opacity-0 animate-fade-in" style={{ animationDelay: `${(idx + 4) * 100}ms` }}>
+                  <Card key={getCoverLetterId(letter) || letter.id || idx} className="glass glass-hover opacity-0 animate-fade-in" style={{ animationDelay: `${(idx + 4) * 100}ms` }}>
                     <CardContent className="p-5">
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-14 rounded-lg bg-gradient-to-br from-accent/20 to-primary/20 border border-accent/30 flex items-center justify-center">
@@ -662,6 +1073,12 @@ const Resumes = () => {
                             <span className="mx-2">•</span>
                             Used for {letter.usedFor} applications
                           </p>
+                          {letter.uploadedFileName && (
+                            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                              <FileText className="w-3 h-3" />
+                              {letter.uploadedFileName}
+                            </p>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => letter.fileUrl && window.open(letter.fileUrl, "_blank")} title="View">
@@ -691,7 +1108,7 @@ const Resumes = () => {
                                   Delete (Protected)
                                 </DropdownMenuItem>
                               ) : (
-                                <DropdownMenuItem className="text-destructive cursor-pointer" onClick={() => handleDeleteCoverLetter(letter.id)}>
+                                <DropdownMenuItem className="text-destructive cursor-pointer" onClick={() => handleDeleteCoverLetter(letter)}>
                                   <Trash2 className="w-4 h-4 mr-2" />
                                   Delete
                                 </DropdownMenuItem>
@@ -946,15 +1363,35 @@ const Resumes = () => {
           </DialogHeader>
           <div className="space-y-4">
             <div>
+              <label className="text-sm font-medium">Cover Letter Name</label>
+              <Input value={editCoverLetterName} onChange={(e) => setEditCoverLetterName(e.target.value)} placeholder="Enter cover letter name..." className="mt-1" />
+              <p className="text-xs text-muted-foreground mt-1">Update the name of this cover letter</p>
+            </div>
+            <div>
               <label className="text-sm font-medium">Cover Letter Content</label>
               <Textarea value={editCoverLetterContent} onChange={(e) => setEditCoverLetterContent(e.target.value)} placeholder="Enter your cover letter content here..." className="mt-1 min-h-[300px] font-mono text-sm" />
               <p className="text-xs text-muted-foreground mt-1">Edit your cover letter content directly in the editor above</p>
             </div>
             <div>
-              <label className="text-sm font-medium">Upload New File (Optional)</label>
-              <Input type="file" accept=".pdf,.doc,.docx,.txt" onChange={(e) => setEditCoverLetterFile(e.target.files?.[0] || null)} className="mt-1" />
-              <p className="text-xs text-muted-foreground mt-1">{editCoverLetterFile ? `Selected: ${editCoverLetterFile.name}` : "Upload to replace the current file"}</p>
+              <label className="text-sm font-medium">Upload New File (TXT only)</label>
+              <Input type="file" accept=".txt" onChange={handleFileChange} className="mt-1" />
+              <p className="text-xs text-muted-foreground mt-1">
+                {editCoverLetterFile ? `Selected: ${editCoverLetterFile.name}` : "Upload a .txt file to replace the current content."}
+              </p>
+              <p className="text-xs text-amber-500 mt-1">Note: PDF/DOCX parsing is currently unavailable. Please upload plain text files.</p>
             </div>
+            {(editingCoverLetter?.uploadedFileName || editingCoverLetter?.filename) && (
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="text-sm font-medium mb-1">Current File</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground flex items-center gap-2">
+                    <FileText className="w-3 h-3" />
+                    {editingCoverLetter.uploadedFileName || editingCoverLetter.filename}
+                  </p>
+                  <Badge variant="outline">Used in {editingCoverLetter.usedFor} applications</Badge>
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium">Download Format</label>
@@ -971,30 +1408,75 @@ const Resumes = () => {
                 </Select>
               </div>
             </div>
-            {editingCoverLetter?.fileUrl && (
-              <div className="p-3 bg-muted rounded-lg">
-                <p className="text-sm font-medium mb-1">Original File</p>
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-muted-foreground">{editingCoverLetter.name}</p>
-                  <Badge variant="outline">Used in {editingCoverLetter.usedFor} applications</Badge>
-                </div>
-              </div>
-            )}
           </div>
           <DialogFooter className="gap-2 flex-col sm:flex-row">
             {editingCoverLetter && (
               <Button
                 variant="outline"
-                onClick={() => {
-                  const blob = new Blob([editCoverLetterContent], { type: "text/plain" });
-                  const url = URL.createObjectURL(blob);
-                  const link = document.createElement("a");
-                  link.href = url;
-                  link.download = `${editingCoverLetter.name}.${editCoverLetterFormat}`;
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                  URL.revokeObjectURL(url);
+                onClick={async () => {
+                  const format = editCoverLetterFormat;
+                  
+                  if (format === "pdf") {
+                    try {
+                      const { jsPDF } = await import('jspdf');
+                      const doc = new jsPDF();
+                      const pageWidth = doc.internal.pageSize.getWidth();
+                      const margin = 20;
+                      const maxWidth = pageWidth - 2 * margin;
+                      const lines = doc.splitTextToSize(editCoverLetterContent, maxWidth);
+                      doc.text(lines, margin, 20);
+                      doc.save(`${editingCoverLetter.name}.pdf`);
+                    } catch (err) {
+                      const blob = new Blob([editCoverLetterContent], { type: "text/plain" });
+                      const url = URL.createObjectURL(blob);
+                      const link = document.createElement("a");
+                      link.href = url;
+                      link.download = `${editingCoverLetter.name}.txt`;
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                      URL.revokeObjectURL(url);
+                    }
+                  } else if (format === "docx") {
+                    try {
+                      const docx = await import('docx');
+                      const { Document, Packer, Paragraph, TextRun } = docx;
+                      const paragraphs = editCoverLetterContent.split('\n').map(line => 
+                        new Paragraph({ children: [new TextRun(line || ' ')] })
+                      );
+                      const doc = new Document({ sections: [{ properties: {}, children: paragraphs }] });
+                      const blob = await Packer.toBlob(doc);
+                      const url = URL.createObjectURL(blob);
+                      const link = document.createElement("a");
+                      link.href = url;
+                      link.download = `${editingCoverLetter.name}.docx`;
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                      URL.revokeObjectURL(url);
+                    } catch (err) {
+                      const blob = new Blob([editCoverLetterContent], { type: "text/plain" });
+                      const url = URL.createObjectURL(blob);
+                      const link = document.createElement("a");
+                      link.href = url;
+                      link.download = `${editingCoverLetter.name}.txt`;
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                      URL.revokeObjectURL(url);
+                    }
+                  } else {
+                    const mimeType = format === "html" ? "text/html" : "text/plain";
+                    const blob = new Blob([editCoverLetterContent], { type: mimeType });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = `${editingCoverLetter.name}.${format}`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                  }
                 }}
                 className="mr-auto"
               >
@@ -1005,9 +1487,15 @@ const Resumes = () => {
             <Button variant="outline" onClick={() => setOpenEditCoverLetter(false)}>
               Cancel
             </Button>
+            {editingCoverLetter && !editingCoverLetter.isProtected && (
+              <Button onClick={handleUpdateCoverLetter} variant="default">
+                <CheckCircle2 className="w-4 h-4 mr-2" />
+                Save
+              </Button>
+            )}
             <Button onClick={handleSaveEditCoverLetter} variant="gradient">
-              <CheckCircle2 className="w-4 h-4 mr-2" />
-              Save as New Copy
+              <Copy className="w-4 h-4 mr-2" />
+              Save as Copy
             </Button>
           </DialogFooter>
         </DialogContent>

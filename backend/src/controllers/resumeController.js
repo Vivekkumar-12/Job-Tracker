@@ -1,6 +1,7 @@
 import Resume from '../models/Resume.js';
 import { extractResumeText } from '../services/resumeParser.js';
 import resumeAtsScorer from '../services/resumeAtsScorer.js';
+import { calculateATSScore } from '../services/atsScorer.js';
 import path from 'path';
 import fs from 'fs';
 

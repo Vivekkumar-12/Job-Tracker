@@ -1,9 +1,7 @@
-import { createRequire } from 'module';
 import fs from 'fs';
-
-const require = createRequire(import.meta.url);
-const pdf = require('pdf-parse');
-const mammoth = require('mammoth');
+import { PDFParse } from 'pdf-parse';
+import * as mammothModule from 'mammoth';
+const mammoth = mammothModule.default || mammothModule;
 
 async function extractResumeText(file) {
   try {
@@ -16,7 +14,7 @@ async function extractResumeText(file) {
     }
 
     if (mimeType.includes('pdf') || filePath.endsWith('.pdf')) {
-      const data = await pdf(fs.readFileSync(filePath));
+      const data = await pdfParse(fs.readFileSync(filePath));
       return data.text || '';
     }
 

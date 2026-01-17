@@ -4,35 +4,35 @@
 
 **URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
 
-## How can I edit this code?
+## Local development
 
-There are several ways of editing your application.
+This repo is a workspace with two apps: `backend` (Express + MongoDB) and `frontend` (Vite + React).
 
-**Use Lovable**
+### One-time setup
+```bash
+# From repo root
+cp backend/.env.example backend/.env
+# Ensure MongoDB is running and edit backend/.env if needed
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+# Install dependencies for both apps and the root runner
+npm run setup
+```
 
-Changes made via Lovable will be committed automatically to this repo.
+### Run both apps together
+```bash
+npm run dev
+```
+- Backend: http://localhost:5000 (API health: /api/health)
+- Frontend: prints dev URL (usually http://localhost:5173)
 
-**Use your preferred IDE**
+### Run separately (optional)
+```bash
+# Backend
+cd backend
+npm run dev
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Frontend (in another terminal)
+cd frontend
 npm run dev
 ```
 
@@ -54,11 +54,10 @@ npm run dev
 
 This project is built with:
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+- Vite (React)
+- Express (Node)
+- MongoDB (Mongoose)
+- shadcn-ui + Tailwind CSS
 
 ## How can I deploy this project?
 
