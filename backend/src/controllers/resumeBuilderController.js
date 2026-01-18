@@ -10,6 +10,7 @@ import resumeAiEnhancer from '../services/resumeAiEnhancer.js';
 import resumeExportService from '../services/resumeExportService.js';
 import { analyzeResumeLocally } from '../services/localAts.js';
 import { scoreResumeFile } from '../services/universalAts.js';
+import { analyzeResumeWithOptimizer } from '../services/resumeOptimizerProApi.js';
 
 /**
  * GET /api/resumes - Get all resumes for a user
@@ -85,6 +86,32 @@ export const createResume = async (req, res) => {
     }
 
     await resume.save();
+
+    // Auto-analyze resume for ATS score if file was provided
+    if (file && resume.fileUrl) {
+      try {
+        const filePath = req.file.path;
+        console.log(`[AUTO-ANALYZE] Starting ATS analysis for resume: ${resume._id}`);
+        
+        const analysis = await analyzeResumeWithOptimizer(filePath);
+        
+        // Store ATS score in resume
+        resume.atsScore = {
+          overallScore: analysis.atsScore || 0,
+          completeness: 0,
+          formatting: 0,
+          lastCalculated: new Date(),
+          suggestions: analysis.corrections || [],
+          matchedKeywords: analysis.keywords || []
+        };
+        
+        await resume.save();
+        console.log(`[AUTO-ANALYZE] ATS score calculated: ${resume.atsScore.overallScore}`);
+      } catch (analysisError) {
+        console.warn(`[AUTO-ANALYZE] ATS analysis failed, but resume was created:`, analysisError.message);
+        // Don't fail the upload if analysis fails
+      }
+    }
 
     res.status(201).json({
       success: true,
@@ -660,33 +687,75 @@ export const analyzeExistingResume = async (req, res) => {
       return res.status(404).json({ error: 'Resume file not found on server' });
     }
 
-    // Analyze the resume
-    const analysis = await analyzeResumeLocally(filePath);
+    // Analyze the resume using Resume Optimizer Pro API
+    const analysis = await analyzeResumeWithOptimizer(filePath);
 
-    // Format issues and corrections
-    const issues = analysis.improvements.map((imp, idx) => ({
-      type: idx % 3 === 0 ? 'error' : idx % 2 === 0 ? 'warning' : 'info',
-      text: imp
-    }));
-
-    const corrections = analysis.improvements.slice(0, 5).map(imp => 
-      imp.replace(/^Add /, 'Consider adding ').replace(/^Include /, 'Try including ')
-    );
+    // Format response
+    const issues = analysis.issues || [];
+    const corrections = analysis.corrections || [];
+    const strengths = analysis.strengths || [];
+    const keywords = analysis.keywords || [];
 
     res.json({
       success: true,
       data: {
-        score: Math.min(100, Math.max(0, Math.round(analysis.atsScore))),
-        totalIssues: analysis.improvements.length,
+        score: Math.min(100, Math.max(0, Math.round(analysis.atsScore || 0))),
+        totalIssues: issues.length,
         issues,
         corrections,
-        strengths: analysis.strengths,
-        keywords: analysis.keywords || []
+        strengths,
+        keywords
       }
     });
   } catch (error) {
     console.error('[ANALYZE] Error:', error);
-    res.status(500).json({ error: error.message });
+    // Fallback to local analysis if API fails
+    try {
+      console.log('[ANALYZE] API failed, falling back to local analysis');
+      const resume = await Resume.findOne({
+        _id: req.params.id,
+        userId: req.user.id
+      });
+      
+      if (!resume || !resume.fileUrl) {
+        return res.status(500).json({ error: error.message });
+      }
+
+      let storedFilename = resume.fileUrl;
+      if (resume.fileUrl.includes('/')) {
+        storedFilename = path.basename(resume.fileUrl);
+      }
+      const filePath = path.join(process.cwd(), 'uploads', storedFilename);
+
+      if (!fs.existsSync(filePath)) {
+        return res.status(500).json({ error: error.message });
+      }
+
+      const analysis = await analyzeResumeLocally(filePath);
+      const issues = analysis.improvements.map((imp, idx) => ({
+        type: idx % 3 === 0 ? 'error' : idx % 2 === 0 ? 'warning' : 'info',
+        text: imp
+      }));
+
+      const corrections = analysis.improvements.slice(0, 5).map(imp => 
+        imp.replace(/^Add /, 'Consider adding ').replace(/^Include /, 'Try including ')
+      );
+
+      res.json({
+        success: true,
+        data: {
+          score: Math.min(100, Math.max(0, Math.round(analysis.atsScore))),
+          totalIssues: analysis.improvements.length,
+          issues,
+          corrections,
+          strengths: analysis.strengths,
+          keywords: analysis.keywords || []
+        }
+      });
+    } catch (fallbackError) {
+      console.error('[ANALYZE] Fallback error:', fallbackError);
+      res.status(500).json({ error: fallbackError.message || error.message });
+    }
   }
 };
 

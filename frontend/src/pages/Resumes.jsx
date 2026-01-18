@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogT
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import apiClient from "@/lib/apiClient";
-import { Plus, FileText, Download, Eye, Edit, Trash2, MoreHorizontal, Sparkles, CheckCircle2, Copy, Star } from "lucide-react";
+import { Plus, FileText, Download, Eye, Edit, Trash2, MoreHorizontal, Sparkles, CheckCircle2, Copy, Star, FileEdit } from "lucide-react";
 
 const standardResumeRules = [
   { rule: "Use action verbs", examples: "led, achieved, implemented, designed, developed" },
@@ -52,10 +53,17 @@ const isPdfFile = (filename) => {
 };
 
 const getAtsValue = (score) => {
+  if (!score) return 0;
+  if (typeof score === 'number') return score;
   if (typeof score === 'object' && score !== null) {
     return score.overallScore ?? 0;
   }
-  return score ?? 0;
+  return 0;
+};
+
+const hasValidAtsScore = (resume) => {
+  const score = getAtsValue(resume?.atsScore);
+  return score > 0;
 };
 
 const triggerLocalAtsScore = async (resumeId, titleForLog = '') => {
@@ -103,6 +111,7 @@ const generateDuplicateName = (name, existingNames) => {
 
 const Resumes = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -115,11 +124,6 @@ const Resumes = () => {
   const [editingResume, setEditingResume] = useState(null);
   const [editResumeTitle, setEditResumeTitle] = useState("");
   const [editResumeFile, setEditResumeFile] = useState(null);
-
-  const [openAIEnhancer, setOpenAIEnhancer] = useState(false);
-  const [aiSuggestions, setAiSuggestions] = useState(null);
-  const [aiAnalyzing, setAiAnalyzing] = useState(false);
-  const [selectedResumeForAI, setSelectedResumeForAI] = useState(null);
 
   // Load cover letters from localStorage or use defaults
   const getInitialCoverLetters = () => {
@@ -190,6 +194,8 @@ Looking forward to connecting,
     try {
       const data = await apiClient.resumes.getAll();
       const resumes = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+      console.log('[RESUMES] Loaded resumes:', resumes);
+      console.log('[RESUMES] First resume atsScore:', resumes[0]?.atsScore);
       setItems(resumes);
     } catch (e) {
       setError(e?.message || "Failed to load resumes");
@@ -274,57 +280,23 @@ Looking forward to connecting,
 
     try {
       setError("");
-      let createdResponse;
       if (newFile) {
         const form = new FormData();
         if (newTitle) form.append("title", newTitle);
         form.append("file", newFile);
-        createdResponse = await apiClient.resumes.createWithFile(form);
+        await apiClient.resumes.createWithFile(form);
       } else {
-        createdResponse = await apiClient.resumes.create({ title: newTitle, filename: `${newTitle}.pdf` });
-      }
-      // Extract the resume from the response (handle both { data: resume } and direct resume)
-      let created = createdResponse?.data || createdResponse;
-
-      // Auto-run ATS scoring if a file was uploaded
-      if (newFile) {
-        const resumeId = getResumeId(created);
-        console.log('[CREATE] Resume ID:', resumeId, 'Title:', created?.title);
-        if (resumeId) {
-          console.log('[CREATE] Starting ATS scoring...');
-          const atsScoreValue = await triggerLocalAtsScore(resumeId, created?.title);
-          console.log('[CREATE] ATS score result:', atsScoreValue);
-          if (atsScoreValue !== null && atsScoreValue > 0) {
-            console.log('[CREATE] Updating created resume with score:', atsScoreValue);
-            created = { ...created, atsScore: atsScoreValue };
-          } else {
-            console.warn('[CREATE] ATS score is null or 0, not updating');
-          }
-        }
+        await apiClient.resumes.create({ title: newTitle, filename: `${newTitle}.pdf` });
       }
 
-      // Reload to ensure DB-persisted ATS score is shown
-      if (getResumeId(created)) {
-        try {
-          console.log('[CREATE] Reloading resume to get DB-persisted score...');
-          const reloaded = await apiClient.resumes.get(getResumeId(created));
-          console.log('[CREATE] Reloaded resume:', reloaded);
-          if (reloaded?.atsScore) {
-            console.log('[CREATE] DB has atsScore:', reloaded.atsScore);
-            created = { ...created, ...reloaded };
-          }
-        } catch (reloadErr) {
-          console.warn('[CREATE] Could not reload:', reloadErr?.message);
-        }
-      }
-
-      setItems((prev) => {
-        console.log('[CREATE] Final item to add:', created);
-        return [created, ...prev];
-      });
-      setOpenCreate(false);
+      toast({ title: "Resume Created!", description: newFile ? "Your resume has been uploaded and is being analyzed for ATS score." : "Your resume has been created successfully." });
+      
+      // Reload all resumes to get the auto-calculated ATS score
+      await loadResumes();
+      
       setNewTitle("");
       setNewFile(null);
+      setOpenCreate(false);
     } catch (e) {
       setError(e?.message || "Failed to create resume");
     }
@@ -432,54 +404,6 @@ Looking forward to connecting,
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
-
-  const handleOpenAIEnhancer = () => {
-    setOpenAIEnhancer(true);
-    if (items.length > 0) {
-      setSelectedResumeForAI(items[0]);
-    }
-  };
-
-  const handleAnalyzeResume = async () => {
-    if (!selectedResumeForAI) return;
-    setAiAnalyzing(true);
-    try {
-      const resumeId = getResumeId(selectedResumeForAI);
-      console.log('[AI ANALYZE] Analyzing resume:', resumeId);
-      
-      const response = await apiClient.post(`/api/resumes/${resumeId}/analyze`);
-      console.log('[AI ANALYZE] Response:', response.data);
-      
-      if (response.data.success) {
-        setAiSuggestions({
-          score: response.data.data.score,
-          totalIssues: response.data.data.totalIssues,
-          issues: response.data.data.issues,
-          corrections: response.data.data.corrections,
-          strengths: response.data.data.strengths,
-          keywords: response.data.data.keywords || [],
-          standardRules: standardResumeRules.map((rule) => ({ ...rule, importance: "High" })),
-        });
-      } else {
-        throw new Error('Analysis failed');
-      }
-    } catch (error) {
-      console.error('[AI ANALYZE] Error:', error);
-      toast({
-        title: "Analysis Failed",
-        description: error.response?.data?.error || error.message || "Could not analyze resume. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setAiAnalyzing(false);
-    }
-  };
-
-  const handleApplySuggestions = () => {
-    setOpenAIEnhancer(false);
-    setAiSuggestions(null);
-    setSelectedResumeForAI(null);
   };
 
   const handleEditCoverLetter = (letter) => {
@@ -919,6 +843,19 @@ Looking forward to connecting,
               <p className="text-muted-foreground mt-1">Manage your documents for job applications</p>
             </div>
             <div className="flex gap-3">
+              <Button 
+                variant="outline" 
+                onClick={() => navigate('/resume-builder')}
+                className="border-2 border-transparent bg-gradient-to-r from-primary via-purple-500 to-pink-500 bg-clip-padding hover:opacity-90 transition-opacity"
+                style={{
+                  backgroundImage: 'linear-gradient(white, white), linear-gradient(to right, hsl(var(--primary)), hsl(280, 100%, 70%), hsl(330, 100%, 70%))',
+                  backgroundOrigin: 'border-box',
+                  backgroundClip: 'padding-box, border-box',
+                }}
+              >
+                <FileEdit className="w-4 h-4 mr-2" />
+                Build Resume
+              </Button>
               <Dialog open={openCreate} onOpenChange={setOpenCreate}>
                 <DialogTrigger asChild>
                   <Button variant="gradient">
@@ -982,38 +919,43 @@ Looking forward to connecting,
                               <span className="mx-2">•</span>
                               Filename: {resume.filename || resume.fileName || resume.originalName || "Not available"}
                             </p>
-                            {(() => {
-                              const scoreValue = Math.round(getAtsValue(resume.atsScore));
-                              return (
-                                <div className="flex items-center gap-4 mt-3">
+                            
+                            {/* ATS Score Display */}
+                            <div className="mt-3">
+                              {hasValidAtsScore(resume) ? (
+                                <div className="flex items-center gap-3">
                                   <div className="flex-1">
-                                    <div className="flex items-center justify-between text-sm mb-1">
-                                      <span className="text-muted-foreground">ATS Score</span>
-                                      <span
-                                        className={scoreValue >= 90
-                                          ? "text-emerald-400"
-                                          : scoreValue >= 80
-                                          ? "text-amber-400"
-                                          : "text-red-400"}
-                                      >
-                                        {scoreValue}%
+                                    <div className="flex items-center justify-between text-xs mb-1.5">
+                                      <span className="text-muted-foreground font-medium">ATS Score</span>
+                                      <span className={`font-bold ${
+                                        getAtsValue(resume.atsScore) >= 90 ? "text-emerald-400"
+                                          : getAtsValue(resume.atsScore) >= 75 ? "text-amber-400"
+                                          : "text-red-400"
+                                      }`}>
+                                        {Math.round(getAtsValue(resume.atsScore))}%
                                       </span>
                                     </div>
-                                    <Progress value={scoreValue} className="h-1.5" />
+                                    <Progress value={getAtsValue(resume.atsScore)} className="h-2" />
                                   </div>
                                   <Badge
                                     variant="outline"
-                                    className={scoreValue >= 85
-                                      ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
-                                      : scoreValue >= 75
-                                      ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
-                                      : "bg-red-500/20 text-red-400 border-red-500/30"}
+                                    className={`text-xs ${
+                                      getAtsValue(resume.atsScore) >= 85 ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+                                        : getAtsValue(resume.atsScore) >= 75 ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                                        : "bg-red-500/20 text-red-400 border-red-500/30"
+                                    }`}
                                   >
-                                    {scoreValue >= 85 ? "Optimized" : scoreValue >= 75 ? "Good" : "Needs Work"}
+                                    {getAtsValue(resume.atsScore) >= 85 ? "Optimized" 
+                                      : getAtsValue(resume.atsScore) >= 75 ? "Good" 
+                                      : "Needs Work"}
                                   </Badge>
                                 </div>
-                              );
-                            })()}
+                              ) : (
+                                <div className="text-xs text-muted-foreground italic">
+                                  Upload a file to get ATS score
+                                </div>
+                              )}
+                            </div>
                           </div>
                           <div className="flex flex-col gap-2">
                             <div className="flex gap-2">
@@ -1124,22 +1066,6 @@ Looking forward to connecting,
             </div>
 
             <div className="space-y-4">
-              <Card className="glass border-primary/30 opacity-0 animate-fade-in animation-delay-300">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-primary" />
-                    AI Resume Checker
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground mb-4">Check your resume against industry best practices. Get detailed feedback on formatting, content, and improvements.</p>
-                  <Button variant="gradient" className="w-full" onClick={handleOpenAIEnhancer}>
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Check Resume
-                  </Button>
-                </CardContent>
-              </Card>
-
               <Card className="glass opacity-0 animate-fade-in animation-delay-400">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base">Standard Resume Rules</CardTitle>
@@ -1201,154 +1127,6 @@ Looking forward to connecting,
               Save Changes
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={openAIEnhancer} onOpenChange={setOpenAIEnhancer}>
-        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-primary" />
-              AI Resume Checker & Suggestion Tool
-            </DialogTitle>
-            <DialogDescription>Review automated checks, issues, and suggested fixes for your selected resume.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            {!aiSuggestions ? (
-              <>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Select Resume to Analyze</label>
-                  <Select value={selectedResumeForAI ? getResumeId(selectedResumeForAI) : ""} onValueChange={(value) => {
-                    const resume = items.find((r) => getResumeId(r) === value);
-                    setSelectedResumeForAI(resume || null);
-                  }}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choose a resume..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.isArray(items) && items.map((resume) => (
-                        <SelectItem key={getResumeId(resume)} value={getResumeId(resume)}>
-                          {resume.title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {selectedResumeForAI && (
-                  <Card className="border-primary/20">
-                    <CardContent className="pt-4">
-                      <div className="flex items-start gap-3">
-                        <FileText className="w-5 h-5 text-primary mt-0.5" />
-                        <div>
-                          <h4 className="font-medium">{selectedResumeForAI.title}</h4>
-                          <p className="text-sm text-muted-foreground mt-1">Uploaded: {selectedResumeForAI.createdAt ? new Date(selectedResumeForAI.createdAt).toLocaleDateString() : "Unknown"}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                <Button onClick={handleAnalyzeResume} disabled={!selectedResumeForAI || aiAnalyzing} className="w-full" variant="gradient">
-                  {aiAnalyzing ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                      Analyzing Resume...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4 mr-2" />
-                      Analyze Resume
-                    </>
-                  )}
-                </Button>
-              </>
-            ) : (
-              <>
-                <Card className="border-primary/30 bg-gradient-to-br from-primary/10 to-primary/5">
-                  <CardContent className="pt-6">
-                    <div className="text-center">
-                      <p className="text-sm text-muted-foreground mb-2">Resume Quality Score</p>
-                      <div className="text-5xl font-bold text-primary mb-2">{aiSuggestions.score}%</div>
-                      <Progress value={aiSuggestions.score} className="h-2" />
-                      <p className="text-xs text-muted-foreground mt-2">Issues Found: {aiSuggestions.totalIssues}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {aiSuggestions.issues.length > 0 && (
-                  <div>
-                    <h4 className="font-semibold text-sm flex items-center gap-2 mb-3 text-amber-500">Issues Found</h4>
-                    <ul className="space-y-2">
-                      {aiSuggestions.issues.map((issue, idx) => (
-                        <li key={idx} className="flex items-start gap-2 text-sm p-2 bg-muted/50 rounded">
-                          <span className={`mt-0.5 ${issue.type === "error" ? "text-red-500" : issue.type === "warning" ? "text-amber-500" : "text-blue-500"}`}>⚠</span>
-                          <span className="text-muted-foreground">{issue.text}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {aiSuggestions.corrections.length > 0 && (
-                  <div>
-                    <h4 className="font-semibold text-sm flex items-center gap-2 mb-3 text-primary">
-                      <Sparkles className="w-4 h-4" />
-                      Corrections & Suggestions
-                    </h4>
-                    <ul className="space-y-2">
-                      {aiSuggestions.corrections.map((correction, idx) => (
-                        <li key={idx} className="flex items-start gap-2 text-sm p-2 bg-primary/10 rounded">
-                          <span className="text-primary mt-0.5">→</span>
-                          <span className="text-muted-foreground">{correction}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {aiSuggestions.strengths.length > 0 && (
-                  <div>
-                    <h4 className="font-semibold text-sm flex items-center gap-2 mb-3 text-green-500">
-                      <CheckCircle2 className="w-4 h-4" />
-                      Strengths
-                    </h4>
-                    <ul className="space-y-2">
-                      {aiSuggestions.strengths.map((strength, idx) => (
-                        <li key={idx} className="flex items-start gap-2 text-sm">
-                          <span className="text-green-500 mt-0.5">✓</span>
-                          <span className="text-muted-foreground">{strength}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                <div>
-                  <h4 className="font-semibold text-sm mb-3">Standard Resume Rules</h4>
-                  <div className="space-y-2">
-                    {aiSuggestions.standardRules.map((rule, idx) => (
-                      <div key={idx} className="text-sm p-2 bg-muted/50 rounded flex items-start gap-2">
-                        <Badge className="mt-0.5" variant={rule.importance === "Critical" ? "destructive" : rule.importance === "High" ? "default" : "secondary"}>
-                          {rule.importance}
-                        </Badge>
-                        <span className="text-muted-foreground">{rule.rule}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
-                  <Button onClick={() => { setAiSuggestions(null); setSelectedResumeForAI(null); }} variant="outline" className="flex-1">
-                    Check Another
-                  </Button>
-                  <Button onClick={handleApplySuggestions} variant="gradient" className="flex-1">
-                    Done
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
         </DialogContent>
       </Dialog>
 
