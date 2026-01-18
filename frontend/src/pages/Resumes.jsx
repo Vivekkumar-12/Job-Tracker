@@ -844,14 +844,8 @@ Looking forward to connecting,
             </div>
             <div className="flex gap-3">
               <Button 
-                variant="outline" 
                 onClick={() => navigate('/resume-builder')}
-                className="border-2 border-transparent bg-gradient-to-r from-primary via-purple-500 to-pink-500 bg-clip-padding hover:opacity-90 transition-opacity"
-                style={{
-                  backgroundImage: 'linear-gradient(white, white), linear-gradient(to right, hsl(var(--primary)), hsl(280, 100%, 70%), hsl(330, 100%, 70%))',
-                  backgroundOrigin: 'border-box',
-                  backgroundClip: 'padding-box, border-box',
-                }}
+                className="relative overflow-hidden bg-gradient-to-r from-purple-600 via-pink-600 to-purple-600 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 border-0 animate-gradient-x"
               >
                 <FileEdit className="w-4 h-4 mr-2" />
                 Build Resume

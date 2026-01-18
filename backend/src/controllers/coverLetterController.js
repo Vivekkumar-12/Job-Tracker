@@ -1,11 +1,16 @@
 import fs from 'fs';
 import fsPromises from 'fs/promises';
 import path from 'path';
-import { PDFParse, VerbosityLevel } from 'pdf-parse';
+import { createRequire } from 'module';
 import * as mammothModule from 'mammoth';
 const mammoth = mammothModule.default || mammothModule;
 import CoverLetter from '../models/CoverLetter.js';
 import Tesseract from 'tesseract.js';
+
+// Import pdf-parse using createRequire for CommonJS compatibility
+const require = createRequire(import.meta.url);
+const pdfParseModule = require('pdf-parse');
+const pdfParse = pdfParseModule.default || pdfParseModule;
 
 const extractTextFromFile = async (absolutePath) => {
   try {
@@ -13,28 +18,10 @@ const extractTextFromFile = async (absolutePath) => {
     if (ext === '.pdf') {
       try {
         const dataBuffer = await fsPromises.readFile(absolutePath);
-        const pdfParse = new PDFParse({ verbosity: VerbosityLevel.ERRORS });
-        await pdfParse.load(dataBuffer);
-        const info = await pdfParse.getInfo();
+        const pdfData = await pdfParse(dataBuffer);
         
-        let fullText = '';
-        let hasText = false;
-        
-        // Try text extraction first
-        for (let i = 1; i <= Math.min(info.numPages, 50); i++) {
-          try {
-            const pageText = await pdfParse.getText(i);
-            if (pageText && pageText.trim().length > 20) {
-              fullText += pageText + '\n';
-              hasText = true;
-            }
-          } catch (pageErr) {
-            console.warn(`[CoverLetters] Could not extract text from page ${i}`);
-          }
-        }
-        
-        if (hasText) {
-          const cleaned = fullText.replace(/\n{3,}/g, '\n\n').trim();
+        if (pdfData.text && pdfData.text.trim()) {
+          const cleaned = pdfData.text.replace(/\n{3,}/g, '\n\n').trim();
           console.log('[CoverLetters] PDF text extracted:', cleaned.length, 'characters');
           return cleaned;
         }

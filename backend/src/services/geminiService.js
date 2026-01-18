@@ -1,6 +1,11 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import fs from 'fs';
-import { PDFParse } from 'pdf-parse';
+import { createRequire } from 'module';
+
+// Import pdf-parse using createRequire for CommonJS compatibility
+const require = createRequire(import.meta.url);
+const pdfParseModule = require('pdf-parse');
+const pdfParse = pdfParseModule.default || pdfParseModule;
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 

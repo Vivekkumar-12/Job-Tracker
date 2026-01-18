@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import connectDB from './config/db.js';
 import verifyToken from './middleware/auth.js';
+// Routes
 import authRoutes from './routes/auth.js';
 import applicationRoutes from './routes/applications.js';
 import resumeRoutes from './routes/resumes.js';

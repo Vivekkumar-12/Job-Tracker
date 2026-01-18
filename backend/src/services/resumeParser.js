@@ -1,7 +1,12 @@
 import fs from 'fs';
-import { PDFParse } from 'pdf-parse';
+import { createRequire } from 'module';
 import * as mammothModule from 'mammoth';
 const mammoth = mammothModule.default || mammothModule;
+
+// Import pdf-parse using createRequire for CommonJS compatibility
+const require = createRequire(import.meta.url);
+const pdfParseModule = require('pdf-parse');
+const pdfParse = pdfParseModule.default || pdfParseModule;
 
 async function extractResumeText(file) {
   try {

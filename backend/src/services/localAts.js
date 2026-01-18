@@ -1,7 +1,18 @@
 import fs from 'fs';
-import { PDFParse } from 'pdf-parse';
+import { createRequire } from 'module';
 import * as mammothModule from 'mammoth';
 const mammoth = mammothModule.default || mammothModule;
+
+// Import pdf-parse using createRequire for CommonJS compatibility
+const require = createRequire(import.meta.url);
+let pdfParse;
+try {
+  const pdfParseModule = require('pdf-parse');
+  pdfParse = pdfParseModule.default || pdfParseModule;
+  console.log('[localAts] pdfParse loaded successfully, type:', typeof pdfParse);
+} catch (err) {
+  console.error('[localAts] Failed to load pdfParse:', err.message);
+}
 
 const TECH_KEYWORDS = [
   'javascript', 'react', 'node', 'typescript', 'java', 'python', 'css', 'html',
@@ -66,6 +77,9 @@ export async function analyzeResumeLocally(filePath) {
   // Extract text from PDF or Word document
   try {
     if (ext === 'pdf') {
+      if (!pdfParse || typeof pdfParse !== 'function') {
+        throw new Error('PDF parsing is not available. Please use the Resume Optimizer Pro API.');
+      }
       const buffer = fs.readFileSync(filePath);
       const parsed = await pdfParse(buffer);
       text = (parsed.text || '').trim();

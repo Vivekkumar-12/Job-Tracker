@@ -140,6 +140,10 @@ export const apiClient = {
         method: 'POST',
         body: JSON.stringify({ text, field }),
       }),
+    analyze: (id) =>
+      makeRequest(`${API_BASE_URL}/resumes/${id}/analyze`, {
+        method: 'POST',
+      }),
     // Export endpoints (blob)
     exportPDF: async (id) => {
       const token = getAuthToken();
