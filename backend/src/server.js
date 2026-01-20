@@ -17,6 +17,7 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const MAX_PORT_ATTEMPTS = 3;
 
 // Middleware
 app.use(cors({
@@ -55,14 +56,32 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error', message: err.message });
 });
 
+// Start server with retry if port is in use
+const listenWithRetry = (port, attempt = 1) =>
+  new Promise((resolve, reject) => {
+    const server = app.listen(port, () => {
+      console.log(`Server running on http://localhost:${port}`);
+      console.log(`API Health Check: http://localhost:${port}/api/health`);
+      resolve(server);
+    });
+
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE' && attempt < MAX_PORT_ATTEMPTS) {
+        const nextPort = Number(port) + 1;
+        console.warn(`Port ${port} in use, trying ${nextPort} (attempt ${attempt + 1}/${MAX_PORT_ATTEMPTS})`);
+        server.close(() => resolve(listenWithRetry(nextPort, attempt + 1)));
+      } else {
+        reject(err);
+      }
+    });
+  });
+
 // Connect to database and start server
 const startServer = async () => {
   try {
     await connectDB();
-    app.listen(PORT, () => {
-      console.log(`Server running on http://localhost:${PORT}`);
-      console.log(`API Health Check: http://localhost:${PORT}/api/health`);
-    });
+    const basePort = Number(PORT) || 5000;
+    await listenWithRetry(basePort);
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);

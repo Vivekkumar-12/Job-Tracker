@@ -52,7 +52,7 @@ export const downloadPDF = async (resumeName, element) => {
 };
 
 /**
- * Print resume
+ * Print resume with proper styling
  * @param {HTMLElement} element - DOM element containing the resume
  */
 export const printResume = (element) => {
@@ -61,11 +61,77 @@ export const printResume = (element) => {
     return;
   }
 
-  const printWindow = window.open('', '', 'width=800,height=600');
-  printWindow.document.write(element.outerHTML);
-  printWindow.document.close();
-  printWindow.focus();
-  printWindow.print();
+  // Use hidden iframe to avoid popup blockers and ensure print reliability
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentWindow?.document;
+  if (!doc) {
+    console.error('Failed to access iframe document for printing');
+    document.body.removeChild(iframe);
+    return;
+  }
+
+  // Build basic HTML and include existing stylesheets and style tags
+  doc.open();
+  doc.write('<!DOCTYPE html><html><head><title>Resume</title>');
+
+  // Clone <link rel="stylesheet"> tags
+  const links = document.querySelectorAll('link[rel="stylesheet"]');
+  links.forEach((link) => {
+    const cloned = link.cloneNode(true);
+    doc.head.appendChild(cloned);
+  });
+
+  // Clone inline <style> tags
+  const styles = document.querySelectorAll('style');
+  styles.forEach((style) => {
+    const cloned = style.cloneNode(true);
+    doc.head.appendChild(cloned);
+  });
+
+  // Add minimal print adjustments
+  const printStyle = doc.createElement('style');
+  printStyle.textContent = `
+    @page { margin: 10mm; }
+    html, body { background: white; }
+    * { box-shadow: none !important; text-shadow: none !important; }
+  `;
+  doc.head.appendChild(printStyle);
+
+  doc.write('</head><body>');
+  const cloned = element.cloneNode(true);
+  doc.body.appendChild(cloned);
+  doc.write('</body></html>');
+  doc.close();
+
+  // Print when iframe finishes loading resources
+  const printNow = () => {
+    try {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+    } catch (e) {
+      console.error('Error invoking print:', e);
+    } finally {
+      // Clean up after a short delay to avoid interfering with print dialog
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+      }, 1000);
+    }
+  };
+
+  // Give the browser a moment to apply styles
+  if (iframe.contentWindow?.document.readyState === 'complete') {
+    setTimeout(printNow, 300);
+  } else {
+    iframe.onload = () => setTimeout(printNow, 300);
+  }
 };
 
 /**

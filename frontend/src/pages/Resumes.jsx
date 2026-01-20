@@ -53,17 +53,28 @@ const isPdfFile = (filename) => {
 };
 
 const getAtsValue = (score) => {
-  if (!score) return 0;
-  if (typeof score === 'number') return score;
-  if (typeof score === 'object' && score !== null) {
-    return score.overallScore ?? 0;
+  // Accept number, numeric string, or object shapes
+  if (score === null || score === undefined) return 0;
+  if (typeof score === 'number' && Number.isFinite(score)) return clamp01(score);
+  if (typeof score === 'string') {
+    const n = parseFloat(score);
+    return Number.isFinite(n) ? clamp01(n) : 0;
+  }
+  if (typeof score === 'object') {
+    // Common shapes: { overallScore }, { score }, { value }
+    const val = score.overallScore ?? score.score ?? score.value ?? 0;
+    const n = typeof val === 'string' ? parseFloat(val) : val;
+    return Number.isFinite(n) ? clamp01(n) : 0;
   }
   return 0;
 };
 
+const clamp01 = (n) => Math.max(0, Math.min(100, Math.round(n)));
+
 const hasValidAtsScore = (resume) => {
   const score = getAtsValue(resume?.atsScore);
-  return score > 0;
+  // Show even if 0, but hide if NaN or missing
+  return Number.isFinite(score);
 };
 
 const triggerLocalAtsScore = async (resumeId, titleForLog = '') => {
@@ -77,25 +88,29 @@ const triggerLocalAtsScore = async (resumeId, titleForLog = '') => {
     console.log('[ATS] Full API response:', JSON.stringify(resp, null, 2));
     
     // Backend response: { success, message, data: { atsScore, grade, recommendation, ... } }
-    const scoreValue = resp?.data?.atsScore;
+    let scoreValue = resp?.data?.atsScore;
+    if (scoreValue === undefined) scoreValue = resp?.atsScore; // fallback if not nested
+    if (scoreValue === undefined) scoreValue = resp?.data?.data?.atsScore; // some APIs nest deeper
     console.log('[ATS] Extracted atsScore:', scoreValue, 'type:', typeof scoreValue);
     
-    if (scoreValue !== null && scoreValue !== undefined && scoreValue !== 0) {
-      const final = Math.round(scoreValue);
+    if (scoreValue !== null && scoreValue !== undefined) {
+      const num = typeof scoreValue === 'string' ? parseFloat(scoreValue) : scoreValue;
+      const final = Math.max(0, Math.min(100, Math.round(num)));
       console.log(`[ATS] ✓ Success: ${final}% for "${titleForLog}"`);
       return final;
     }
-    
-    console.warn('[ATS] Score is null, undefined, or 0:', scoreValue);
-    console.log('[ATS] Full data object:', resp?.data);
-    return null;
+    // If we reach here, surface an error so UI can show specifics
+    const errMsg = resp?.error || resp?.message || 'No score returned from server';
+    console.warn('[ATS] Score missing. Throwing error:', errMsg);
+    throw new Error(errMsg);
   } catch (err) {
     console.error('[ATS] ✗ Exception:', {
       message: err?.message,
       status: err?.status,
       fullError: err
     });
-    return null;
+    // Rethrow to let caller toast the backend-provided error
+    throw err;
   }
 };
 
@@ -115,6 +130,7 @@ const Resumes = () => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [atsLoadingMap, setAtsLoadingMap] = useState({});
 
   const [openCreate, setOpenCreate] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -317,6 +333,44 @@ Looking forward to connecting,
     setEditResumeTitle(resume?.title || "");
     setEditResumeFile(null);
     setOpenEditResume(true);
+  };
+
+  // Calculate ATS for a specific resume and update list
+  const handleCalculateAts = async (resume) => {
+    const resumeId = getResumeId(resume);
+    if (!resumeId) {
+      setError("Resume ID not found. Please refresh and try again.");
+      return;
+    }
+    // Guard: ensure a resume file exists
+    if (!resume?.fileUrl && !getResumeUrl(resume)) {
+      const msg = "No resume file found. Please upload a PDF or DOCX.";
+      setError(msg);
+      toast({ title: "ATS Error", description: msg, variant: "destructive" });
+      return;
+    }
+    setAtsLoadingMap((prev) => ({ ...prev, [resumeId]: true }));
+    try {
+      const score = await triggerLocalAtsScore(resumeId, resume?.title || "");
+      if (score !== null) {
+        setItems((prev) => prev.map((r) => (
+          getResumeId(r) === resumeId ? { ...r, atsScore: score } : r
+        )));
+        toast({ title: "ATS Updated", description: `Score: ${score}%` });
+      } else {
+        toast({
+          title: "ATS Not Available",
+          description: "No score returned. Ensure a resume file is uploaded.",
+          variant: "destructive",
+        });
+      }
+    } catch (e) {
+      const msg = e?.message || "Failed to calculate ATS";
+      setError(msg);
+      toast({ title: "ATS Error", description: msg, variant: "destructive" });
+    } finally {
+      setAtsLoadingMap((prev) => ({ ...prev, [resumeId]: false }));
+    }
   };
 
   const handleSaveEditResume = async () => {
@@ -914,39 +968,37 @@ Looking forward to connecting,
                               Filename: {resume.filename || resume.fileName || resume.originalName || "Not available"}
                             </p>
                             
-                            {/* ATS Score Display */}
+                            {/* ATS: replace leveler with button; show plain result */}
                             <div className="mt-3">
                               {hasValidAtsScore(resume) ? (
-                                <div className="flex items-center gap-3">
-                                  <div className="flex-1">
-                                    <div className="flex items-center justify-between text-xs mb-1.5">
-                                      <span className="text-muted-foreground font-medium">ATS Score</span>
-                                      <span className={`font-bold ${
-                                        getAtsValue(resume.atsScore) >= 90 ? "text-emerald-400"
-                                          : getAtsValue(resume.atsScore) >= 75 ? "text-amber-400"
-                                          : "text-red-400"
-                                      }`}>
-                                        {Math.round(getAtsValue(resume.atsScore))}%
-                                      </span>
-                                    </div>
-                                    <Progress value={getAtsValue(resume.atsScore)} className="h-2" />
-                                  </div>
-                                  <Badge
-                                    variant="outline"
-                                    className={`text-xs ${
-                                      getAtsValue(resume.atsScore) >= 85 ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
-                                        : getAtsValue(resume.atsScore) >= 75 ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
-                                        : "bg-red-500/20 text-red-400 border-red-500/30"
-                                    }`}
-                                  >
-                                    {getAtsValue(resume.atsScore) >= 85 ? "Optimized" 
-                                      : getAtsValue(resume.atsScore) >= 75 ? "Good" 
-                                      : "Needs Work"}
-                                  </Badge>
+                                <div className="text-xs">
+                                  <span className="text-muted-foreground font-medium">ATS Score:</span>{' '}
+                                  <span className="font-bold">{Math.round(getAtsValue(resume.atsScore))}%</span>
                                 </div>
                               ) : (
-                                <div className="text-xs text-muted-foreground italic">
-                                  Upload a file to get ATS score
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleCalculateAts(resume)}
+                                    disabled={Boolean(atsLoadingMap[getResumeId(resume)]) || !resume.fileUrl}
+                                  >
+                                    {atsLoadingMap[getResumeId(resume)] ? 'Calculating…' : 'Calculate ATS'}
+                                  </Button>
+                                  {!resume.fileUrl && (
+                                    <Button
+                                      variant="secondary"
+                                      size="sm"
+                                      onClick={() => handleEditResume(resume)}
+                                    >
+                                      Upload File
+                                    </Button>
+                                  )}
+                                </div>
+                              )}
+                              {(!resume.fileUrl && getAtsValue(resume.atsScore) === 0) && (
+                                <div className="text-[11px] text-muted-foreground mt-1">
+                                  Upload a resume file to calculate ATS.
                                 </div>
                               )}
                             </div>
