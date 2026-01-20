@@ -16,6 +16,7 @@ import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
+import ApplicationDetail from "./pages/ApplicationDetail";
 
 const queryClient = new QueryClient();
 
@@ -51,6 +52,14 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <Applications />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/applications/:id"
+                element={
+                  <ProtectedRoute>
+                    <ApplicationDetail />
                   </ProtectedRoute>
                 }
               />

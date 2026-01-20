@@ -5,13 +5,15 @@ import {
   createApplication,
   updateApplication,
   deleteApplication,
-  getApplicationStats
+  getApplicationStats,
+  getDashboardData
 } from '../controllers/applicationController.js';
 
 const router = express.Router();
 
 router.get('/', getApplications);
 router.get('/stats', getApplicationStats);
+router.get('/dashboard', getDashboardData);
 router.get('/:id', getApplication);
 router.post('/', createApplication);
 router.put('/:id', updateApplication);

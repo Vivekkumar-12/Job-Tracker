@@ -1,18 +1,19 @@
 import { cn } from "@/lib/utils";
 
-const weekData = [
-  { day: "Mon", applied: 3, interviews: 1 },
-  { day: "Tue", applied: 5, interviews: 0 },
-  { day: "Wed", applied: 2, interviews: 2 },
-  { day: "Thu", applied: 4, interviews: 1 },
-  { day: "Fri", applied: 6, interviews: 0 },
-  { day: "Sat", applied: 1, interviews: 0 },
-  { day: "Sun", applied: 0, interviews: 0 },
-];
+export function ActivityChart({ weekData = [] }) {
+  // Use provided data or default to empty data
+  const data = weekData.length > 0 ? weekData : [
+    { day: "Mon", applied: 0, interviews: 0 },
+    { day: "Tue", applied: 0, interviews: 0 },
+    { day: "Wed", applied: 0, interviews: 0 },
+    { day: "Thu", applied: 0, interviews: 0 },
+    { day: "Fri", applied: 0, interviews: 0 },
+    { day: "Sat", applied: 0, interviews: 0 },
+    { day: "Sun", applied: 0, interviews: 0 },
+  ];
 
-const maxValue = Math.max(...weekData.map((d) => d.applied + d.interviews));
+  const maxValue = Math.max(...data.map((d) => d.applied + d.interviews), 1);
 
-export function ActivityChart() {
   return (
     <div className="glass rounded-xl p-6 card-shadow opacity-0 animate-fade-in" style={{ animationDelay: "500ms" }}>
       <div className="flex items-center justify-between mb-6">
@@ -30,9 +31,9 @@ export function ActivityChart() {
       </div>
 
       <div className="flex items-end justify-between gap-2 h-40">
-        {weekData.map((data, idx) => (
+        {data.map((dayData, idx) => (
           <div
-            key={data.day}
+            key={dayData.day}
             className={cn(
               "flex-1 flex flex-col items-center gap-2",
               "opacity-0 animate-fade-in"
@@ -44,29 +45,33 @@ export function ActivityChart() {
               <div
                 className="w-full max-w-8 rounded-t-sm bg-accent transition-all duration-500"
                 style={{
-                  height: `${(data.interviews / maxValue) * 100}px`,
+                  height: `${(dayData.interviews / maxValue) * 100}px`,
                 }}
               />
               {/* Applications bar */}
               <div
                 className="w-full max-w-8 rounded-t-sm bg-primary transition-all duration-500"
                 style={{
-                  height: `${(data.applied / maxValue) * 100}px`,
+                  height: `${(dayData.applied / maxValue) * 100}px`,
                 }}
               />
             </div>
-            <span className="text-xs text-muted-foreground">{data.day}</span>
+            <span className="text-xs text-muted-foreground">{dayData.day}</span>
           </div>
         ))}
       </div>
 
       <div className="mt-6 grid grid-cols-2 gap-4">
         <div className="p-3 rounded-lg bg-secondary/50">
-          <p className="text-2xl font-bold text-primary">21</p>
+          <p className="text-2xl font-bold text-primary">
+            {data.reduce((sum, d) => sum + d.applied, 0)}
+          </p>
           <p className="text-xs text-muted-foreground">Applications this week</p>
         </div>
         <div className="p-3 rounded-lg bg-secondary/50">
-          <p className="text-2xl font-bold text-accent">4</p>
+          <p className="text-2xl font-bold text-accent">
+            {data.reduce((sum, d) => sum + d.interviews, 0)}
+          </p>
           <p className="text-xs text-muted-foreground">Interviews scheduled</p>
         </div>
       </div>

@@ -1,56 +1,66 @@
 import { cn } from "@/lib/utils";
 
-const statusColumns = [
-  {
-    id: "applied",
+const statusConfig = {
+  applied: {
     title: "Applied",
-    count: 12,
     color: "from-blue-500/20 to-blue-600/20 border-blue-500/30",
-    items: [
-      { company: "Google", role: "Frontend Engineer", daysAgo: 2 },
-      { company: "Meta", role: "React Developer", daysAgo: 5 },
-      { company: "Stripe", role: "Full Stack Dev", daysAgo: 7 },
-    ],
   },
-  {
-    id: "screening",
-    title: "Phone Screen",
-    count: 4,
+  assessment: {
+    title: "Assessment",
     color: "from-amber-500/20 to-orange-500/20 border-amber-500/30",
-    items: [
-      { company: "Netflix", role: "Senior SWE", daysAgo: 1 },
-      { company: "Airbnb", role: "UI Engineer", daysAgo: 3 },
-    ],
   },
-  {
-    id: "interview",
-    title: "Interview",
-    count: 3,
+  interviewing: {
+    title: "Interviewing",
     color: "from-purple-500/20 to-pink-500/20 border-purple-500/30",
-    items: [
-      { company: "Vercel", role: "Staff Engineer", daysAgo: 0 },
-      { company: "Linear", role: "Product Engineer", daysAgo: 2 },
-    ],
   },
-  {
-    id: "offer",
+  offered: {
     title: "Offer",
-    count: 1,
     color: "from-emerald-500/20 to-green-500/20 border-emerald-500/30",
-    items: [{ company: "Figma", role: "Design Engineer", daysAgo: 1 }],
   },
-];
+  rejected: {
+    title: "Rejected",
+    color: "from-red-500/20 to-rose-500/20 border-red-500/30",
+  },
+  withdrawn: {
+    title: "Withdrawn",
+    color: "from-gray-500/20 to-gray-600/20 border-gray-500/30",
+  },
+};
 
-export function ApplicationStatusBoard() {
+export function ApplicationStatusBoard({ statusData = [] }) {
+  // Transform backend data to columns format
+  const statusColumns = statusData.map(stat => ({
+    id: stat._id,
+    title: statusConfig[stat._id]?.title || stat._id,
+    count: stat.count,
+    color: statusConfig[stat._id]?.color || statusConfig.applied.color,
+  }));
+
+  // Filter out rejected/withdrawn for the board display
+  const displayColumns = statusColumns.filter(col => 
+    !['rejected', 'withdrawn'].includes(col.id)
+  );
+
+  if (displayColumns.length === 0) {
+    return (
+      <div className="glass rounded-xl p-6 card-shadow opacity-0 animate-fade-in" style={{ animationDelay: "400ms" }}>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-lg font-semibold">Application Pipeline</h2>
+        </div>
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">No applications in the pipeline yet</p>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="glass rounded-xl p-6 card-shadow opacity-0 animate-fade-in" style={{ animationDelay: "400ms" }}>
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg font-semibold">Application Pipeline</h2>
-        <button className="text-sm text-primary hover:underline">View All</button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {statusColumns.map((column, idx) => (
+        {displayColumns.map((column, idx) => (
           <div
             key={column.id}
             className={cn(
@@ -67,27 +77,14 @@ export function ApplicationStatusBoard() {
               </span>
             </div>
 
-            <div className="space-y-2">
-              {column.items.map((item, itemIdx) => (
-                <div
-                  key={itemIdx}
-                  className="bg-card/80 backdrop-blur-sm rounded-lg p-3 hover:bg-card transition-colors cursor-pointer group"
-                >
-                  <p className="font-medium text-sm group-hover:text-primary transition-colors">
-                    {item.company}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {item.role}
-                  </p>
-                  <p className="text-xs text-muted-foreground/70 mt-1">
-                    {item.daysAgo === 0 ? "Today" : `${item.daysAgo}d ago`}
-                  </p>
-                </div>
-              ))}
+            <div className="text-center py-6">
+              <p className="text-xs text-muted-foreground">
+                {column.count} {column.count === 1 ? 'application' : 'applications'}
+              </p>
             </div>
           </div>
         ))}
       </div>
     </div>
   );
-}
+};

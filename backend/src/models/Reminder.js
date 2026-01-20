@@ -1,6 +1,11 @@
 import mongoose from 'mongoose';
 
 const reminderSchema = new mongoose.Schema({
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
   title: {
     type: String,
     required: true
@@ -14,6 +19,14 @@ const reminderSchema = new mongoose.Schema({
     type: String,
     enum: ['interview', 'followup', 'deadline', 'other'],
     default: 'other'
+  },
+  priority: {
+    type: String,
+    enum: ['high', 'medium', 'low'],
+    default: 'medium'
+  },
+  company: {
+    type: String
   },
   applicationId: {
     type: mongoose.Schema.Types.ObjectId,
