@@ -11,6 +11,7 @@ import reminderRoutes from './routes/reminders.js';
 import jobListingRoutes from './routes/jobListings.js';
 import coverLetterRoutes from './routes/coverLetters.js';
 import searchRoutes from './routes/search.js';
+import notificationRoutes from './routes/notifications.js';
 import path from 'path';
 
 dotenv.config();
@@ -24,8 +25,9 @@ app.use(cors({
   origin: process.env.NODE_ENV === 'production' ? 'your-frontend-url.com' : '*',
   credentials: true
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Increase body size limits to handle base64 avatars and resume content
+app.use(express.json({ limit: '6mb' }));
+app.use(express.urlencoded({ extended: true, limit: '6mb' }));
 // Static serving for uploaded files
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
@@ -43,6 +45,7 @@ app.use('/api/resumes', verifyToken, resumeRoutes);
 app.use('/api/cover-letters', verifyToken, coverLetterRoutes);
 app.use('/api/reminders', verifyToken, reminderRoutes);
 app.use('/api/job-listings', verifyToken, jobListingRoutes);
+app.use('/api/notifications', verifyToken, notificationRoutes);
 app.use('/api/search', searchRoutes);
 
 // 404 handler

@@ -63,6 +63,34 @@ export const apiClient = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+    sendExportOtp: () =>
+      makeRequest(`${API_BASE_URL}/auth/export-otp`, {
+        method: 'POST',
+      }),
+    deleteAccount: (data) =>
+      makeRequest(`${API_BASE_URL}/auth/account`, {
+        method: 'DELETE',
+        body: JSON.stringify(data),
+      }),
+    enable2FA: () =>
+      makeRequest(`${API_BASE_URL}/auth/2fa/enable`, {
+        method: 'POST',
+      }),
+    verify2FASetup: (code) =>
+      makeRequest(`${API_BASE_URL}/auth/2fa/verify-setup`, {
+        method: 'POST',
+        body: JSON.stringify({ code }),
+      }),
+    disable2FA: (password) =>
+      makeRequest(`${API_BASE_URL}/auth/2fa/disable`, {
+        method: 'POST',
+        body: JSON.stringify({ password }),
+      }),
+    send2FACode: (email) =>
+      makeRequest(`${API_BASE_URL}/auth/2fa/send`, {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      }),
   },
 
   // Applications
@@ -267,6 +295,23 @@ export const apiClient = {
       const query = new URLSearchParams(params);
       return makeRequest(`${API_BASE_URL}/search/jobs?${query}`);
     },
+  },
+
+  // Push Notifications
+  notifications: {
+    subscribe: (subscription) =>
+      makeRequest(`${API_BASE_URL}/notifications/subscribe`, {
+        method: 'POST',
+        body: JSON.stringify({ subscription }),
+      }),
+    unsubscribe: () =>
+      makeRequest(`${API_BASE_URL}/notifications/unsubscribe`, {
+        method: 'POST',
+      }),
+    getSubscription: () =>
+      makeRequest(`${API_BASE_URL}/notifications/subscription`, {
+        method: 'GET',
+      }),
   },
 };
 

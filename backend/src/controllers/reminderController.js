@@ -1,4 +1,6 @@
 import Reminder from '../models/Reminder.js';
+import User from '../models/User.js';
+import { sendReminderEmail } from '../services/emailService.js';
 
 // Get all reminders
 export const getReminders = async (req, res) => {
@@ -33,6 +35,40 @@ export const createReminder = async (req, res) => {
     });
     await reminder.save();
     await reminder.populate('applicationId');
+
+    // Send email if user has email notifications enabled
+    try {
+      const user = await User.findById(req.user.id);
+      const prefs = user?.notificationPreferences || {};
+      const wantsEmail = prefs.email !== false; // default true
+      const typeAllowed =
+        reminder.type === 'interview'
+          ? prefs.interview !== false
+          : reminder.type === 'deadline'
+          ? prefs.deadline !== false
+          : true;
+
+      if (user?.email && wantsEmail && typeAllowed) {
+        const subject = `Reminder: ${reminder.title}`;
+        const when = new Date(reminder.reminderDate).toLocaleString();
+        const bodyLines = [
+          reminder.description ? reminder.description : null,
+          reminder.company ? `Company: ${reminder.company}` : null,
+          `When: ${when}`,
+          reminder.type ? `Type: ${reminder.type}` : null,
+        ].filter(Boolean);
+
+        await sendReminderEmail({
+          to: user.email,
+          subject,
+          text: bodyLines.join('\n'),
+          html: bodyLines.map((l) => `<p>${l}</p>`).join(''),
+        });
+      }
+    } catch (emailErr) {
+      console.error('Failed to send reminder email:', emailErr.message);
+    }
+
     res.status(201).json(reminder);
   } catch (error) {
     res.status(400).json({ error: error.message });

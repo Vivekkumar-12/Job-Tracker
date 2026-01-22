@@ -1,12 +1,10 @@
 import fs from 'fs';
 import { createRequire } from 'module';
 import * as mammothModule from 'mammoth';
-const mammoth = mammothModule.default || mammothModule;
+import { PDFParse } from 'pdf-parse';
 
-// Import pdf-parse using createRequire for CommonJS compatibility
-const require = createRequire(import.meta.url);
-const pdfParseModule = require('pdf-parse');
-const pdfParse = pdfParseModule.default || pdfParseModule;
+const mammoth = mammothModule.default || mammothModule;
+const pdfParse = PDFParse;
 
 export const ACTION_VERBS = {
   leadership: [

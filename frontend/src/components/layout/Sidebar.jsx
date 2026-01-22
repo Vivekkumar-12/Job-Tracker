@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   FileText,
@@ -13,9 +13,11 @@ import {
   Plus,
   LogOut,
   FileEdit,
+  ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
@@ -30,6 +32,9 @@ const navItems = [
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [avatarImage, setAvatarImage] = useState(null);
 
   useEffect(() => {
     const handleResize = () => {
@@ -44,6 +49,27 @@ export function Sidebar() {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  useEffect(() => {
+    const savedAvatar = localStorage.getItem("userAvatarImage");
+    if (savedAvatar) {
+      setAvatarImage(savedAvatar);
+    } else if (user?.profilePicture) {
+      setAvatarImage(user.profilePicture);
+    } else {
+      setAvatarImage(null);
+    }
+  }, [user]);
+
+  const getInitials = (username) => {
+    if (!username) return "U";
+    return username
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
 
   return (
     <aside
@@ -110,28 +136,28 @@ export function Sidebar() {
       <div className="p-4 border-t border-sidebar-border">
         <div
           className={cn(
-            "flex items-center gap-3 p-3 rounded-lg bg-sidebar-accent",
+            "flex items-center gap-3 p-3 rounded-lg bg-sidebar-accent cursor-pointer",
             collapsed ? "justify-center" : ""
           )}
+          onClick={() => navigate("/settings")}
         >
           <div className="relative">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-primary-foreground font-semibold">
-              JD
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-primary-foreground font-semibold overflow-hidden">
+              {avatarImage ? (
+                <img src={avatarImage} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                getInitials(user?.username || "U")
+              )}
             </div>
             <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-success border-2 border-sidebar" />
           </div>
           {!collapsed && (
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">John Doe</p>
+              <p className="text-sm font-medium truncate">{user?.username || "User"}</p>
               <p className="text-xs text-muted-foreground truncate">
-                john@example.com
+                {user?.email || "user@example.com"}
               </p>
             </div>
-          )}
-          {!collapsed && (
-            <button className="p-1.5 rounded-md hover:bg-secondary transition-colors">
-              <LogOut className="w-4 h-4 text-muted-foreground" />
-            </button>
           )}
         </div>
       </div>

@@ -23,6 +23,18 @@ const userSchema = new mongoose.Schema({
     minlength: 6,
     select: false // Don't include password by default in queries
   },
+  notificationPreferences: {
+    email: { type: Boolean, default: true },
+    push: { type: Boolean, default: true },
+    interview: { type: Boolean, default: true },
+    deadline: { type: Boolean, default: true },
+    digest: { type: Boolean, default: false },
+  },
+  appearancePreferences: {
+    darkMode: { type: Boolean, default: true },
+    accentColor: { type: String, default: 'blue', enum: ['blue', 'purple', 'green', 'orange', 'pink'] },
+    defaultView: { type: String, default: 'dashboard', enum: ['dashboard', 'applications', 'search'] },
+  },
   profilePicture: {
     type: String,
     default: null
@@ -30,6 +42,22 @@ const userSchema = new mongoose.Schema({
   bio: {
     type: String,
     default: ''
+  },
+  twoFactorAuth: {
+    enabled: { type: Boolean, default: false },
+    verifiedAt: { type: Date, default: null }
+  },
+  pushNotification: {
+    enabled: { type: Boolean, default: false },
+    subscription: {
+      endpoint: String,
+      keys: {
+        p256dh: String,
+        auth: String
+      }
+    },
+    subscribedAt: { type: Date, default: null },
+    unsubscribedAt: { type: Date, default: null }
   },
   createdAt: {
     type: Date,

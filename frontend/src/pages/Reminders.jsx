@@ -176,6 +176,7 @@ const Reminders = () => {
     type: "other",
     priority: "medium",
     company: "",
+    emailNotifyBefore: "60", // default 1 hour before
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -217,6 +218,7 @@ const Reminders = () => {
         type: reminder.type || "other",
         priority: reminder.priority || "medium",
         company: reminder.company || "",
+        emailNotifyBefore: String(reminder.emailNotifyBefore || 60),
       });
     } else {
       // Create mode
@@ -229,6 +231,7 @@ const Reminders = () => {
         type: "other",
         priority: "medium",
         company: "",
+        emailNotifyBefore: "60",
       });
     }
     setIsDialogOpen(true);
@@ -245,6 +248,7 @@ const Reminders = () => {
       type: "other",
       priority: "medium",
       company: "",
+      emailNotifyBefore: "60",
     });
   };
 
@@ -275,6 +279,7 @@ const Reminders = () => {
         type: formData.type,
         priority: formData.priority,
         company: formData.company,
+        emailNotifyBefore: parseInt(formData.emailNotifyBefore) || 60,
       };
 
       if (editingReminder) {
@@ -600,6 +605,33 @@ const Reminders = () => {
                     onChange={(e) => setFormData({ ...formData, reminderTime: e.target.value })}
                   />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="emailNotifyBefore" className="text-sm font-medium">
+                  Send Email Reminder Before
+                </label>
+                <Select
+                  value={formData.emailNotifyBefore}
+                  onValueChange={(value) => setFormData({ ...formData, emailNotifyBefore: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="15">15 minutes before</SelectItem>
+                    <SelectItem value="30">30 minutes before</SelectItem>
+                    <SelectItem value="60">1 hour before</SelectItem>
+                    <SelectItem value="120">2 hours before</SelectItem>
+                    <SelectItem value="180">3 hours before</SelectItem>
+                    <SelectItem value="360">6 hours before</SelectItem>
+                    <SelectItem value="720">12 hours before</SelectItem>
+                    <SelectItem value="1440">1 day before</SelectItem>
+                    <SelectItem value="2880">2 days before</SelectItem>
+                    <SelectItem value="4320">3 days before</SelectItem>
+                    <SelectItem value="10080">1 week before</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">

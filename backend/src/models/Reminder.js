@@ -36,6 +36,14 @@ const reminderSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  emailNotifyBefore: {
+    type: Number, // in minutes before the reminder
+    default: 60 // default 1 hour before
+  },
+  emailSent: {
+    type: Boolean,
+    default: false
+  },
   createdAt: {
     type: Date,
     default: Date.now

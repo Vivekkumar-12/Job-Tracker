@@ -49,12 +49,19 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const login = async (email, password) => {
+  const login = async (email, password, twoFactorCode) => {
     try {
       const response = await apiClient.auth.login({
         email,
-        password
+        password,
+        ...(twoFactorCode && { twoFactorCode })
       });
+      
+      // If 2FA is required, return the response without setting auth
+      if (response.requires2FA) {
+        return response;
+      }
+      
       localStorage.setItem('authToken', response.token);
       setUser(response.user);
       setIsAuthenticated(true);
@@ -98,6 +105,17 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const deleteAccount = async (password) => {
+    try {
+      await apiClient.auth.deleteAccount({ password });
+      localStorage.removeItem('authToken');
+      setUser(null);
+      setIsAuthenticated(false);
+    } catch (error) {
+      throw error;
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -109,6 +127,7 @@ export const AuthProvider = ({ children }) => {
         logout,
         updateProfile,
         changePassword,
+        deleteAccount,
         loadCurrentUser
       }}
     >
