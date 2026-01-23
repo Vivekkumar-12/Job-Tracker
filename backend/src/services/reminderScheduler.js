@@ -14,7 +14,7 @@ export const processReminders = async () => {
     // Find reminders that need email notification
     // - Not completed
     // - Email not sent yet
-    // - Reminder date minus emailNotifyBefore is in the past
+    // - Reminder date minus emailNotifyBefore is in the past or present
     const remindersToNotify = await Reminder.find({
       isCompleted: false,
       emailSent: false
@@ -26,8 +26,14 @@ export const processReminders = async () => {
     for (const reminder of remindersToNotify) {
       const notifyBefore = reminder.emailNotifyBefore || 60; // default 60 minutes
       const notifyTime = new Date(reminder.reminderDate.getTime() - notifyBefore * 60 * 1000);
+      const reminderTime = new Date(reminder.reminderDate);
+      
+      // Debug logging
+      const minutesUntilNotify = (notifyTime.getTime() - now.getTime()) / (1000 * 60);
+      const minutesUntilReminder = (reminderTime.getTime() - now.getTime()) / (1000 * 60);
       
       // Check if it's time to send the notification
+      // Only send if: NOW >= (reminderDate - notifyBefore minutes) AND email not sent yet
       if (now >= notifyTime && !reminder.emailSent) {
         try {
           const user = reminder.userId;
@@ -73,7 +79,11 @@ export const processReminders = async () => {
             await reminder.save();
             emailsSent++;
             
-            console.log(`✓ Sent reminder email for: ${reminder.title} to ${user.email}`);
+            console.log(`✓ Sent reminder email for: ${reminder.title}`);
+            console.log(`  Scheduled for: ${when}`);
+            console.log(`  Notify before: ${notifyBefore} minutes`);
+            console.log(`  To: ${user.email}`);
+            console.log(`  (${minutesUntilReminder.toFixed(1)} minutes until reminder time)`);
           }
         } catch (emailErr) {
           console.error(`Failed to send reminder email for ${reminder._id}:`, emailErr.message);

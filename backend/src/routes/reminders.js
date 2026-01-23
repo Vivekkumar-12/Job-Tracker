@@ -7,10 +7,12 @@ import {
   deleteReminder,
   completeReminder
 } from '../controllers/reminderController.js';
+import { debugReminder } from '../controllers/reminderDebugController.js';
 
 const router = express.Router();
 
 router.get('/', getReminders);
+router.get('/debug/:reminderId', debugReminder);
 router.get('/:id', getReminder);
 router.post('/', createReminder);
 router.put('/:id', updateReminder);
