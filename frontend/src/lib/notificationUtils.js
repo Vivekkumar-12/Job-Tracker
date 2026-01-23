@@ -58,6 +58,37 @@ export const areNotificationsEnabled = () => {
 };
 
 /**
+ * Convert base64 VAPID key to Uint8Array
+ */
+const urlBase64ToUint8Array = (base64String) => {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding)
+    .replace(/\-/g, '+')
+    .replace(/_/g, '/');
+
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+};
+
+/**
+ * Get VAPID public key from server
+ */
+const getVapidPublicKey = async () => {
+  try {
+    const response = await apiClient.notifications.getVapidKey();
+    return response.publicKey;
+  } catch (error) {
+    console.warn('Failed to get VAPID key:', error);
+    return null;
+  }
+};
+
+/**
  * Subscribe to push notifications via service worker
  */
 export const subscribeToPush = async () => {
@@ -72,16 +103,24 @@ export const subscribeToPush = async () => {
     let subscription = await registration.pushManager.getSubscription();
     
     if (!subscription) {
-      // Create new subscription (note: requires VAPID public key in production)
-      // For now, this is just for local notifications
-      subscription = await registration.pushManager.subscribe({
+      // Get VAPID public key from server
+      const vapidPublicKey = await getVapidPublicKey();
+      
+      const subscribeOptions = {
         userVisibleOnly: true,
-        // In production, you would add:
-        // applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-      }).catch(err => {
-        console.log('Push subscription not available (expected in dev):', err);
-        return null;
-      });
+      };
+
+      // Add VAPID key if available
+      if (vapidPublicKey) {
+        subscribeOptions.applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
+      }
+
+      // Create new subscription
+      subscription = await registration.pushManager.subscribe(subscribeOptions)
+        .catch(err => {
+          console.log('Push subscription failed:', err);
+          return null;
+        });
     }
 
     if (subscription) {

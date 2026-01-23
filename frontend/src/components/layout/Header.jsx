@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Search, Bell, Command, LogOut, Settings, X, Share2, Linkedin, Github, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -30,6 +30,26 @@ export function Header() {
     portfolio: "",
     twitter: "",
   });
+
+  // Enhanced highlight text function - creates "Ctrl+F" visual effect
+  const highlightText = (text, highlight) => {
+    if (!highlight.trim() || !text) return text;
+    
+    const parts = text.split(new RegExp(`(${highlight})`, 'gi'));
+    return (
+      <span>
+        {parts.map((part, i) => 
+          part.toLowerCase() === highlight.toLowerCase() ? (
+            <mark key={i} className="bg-yellow-200 dark:bg-yellow-500 text-gray-900 dark:text-gray-900 rounded-sm px-0.5 font-semibold">
+              {part}
+            </mark>
+          ) : (
+            <span key={i}>{part}</span>
+          )
+        )}
+      </span>
+    );
+  };
 
   // Fetch notifications from backend
   useEffect(() => {
@@ -148,35 +168,23 @@ export function Header() {
     try {
       setShowSearchResults(true);
 
-      // Fetch applications and resumes with error handling
-      let applications = [];
-      let resumes = [];
-      let jobs = [];
+      // Fetch all data sources concurrently with error handling
+      const [applicationsData, resumesData, jobsData] = await Promise.allSettled([
+        apiClient.applications.getAll(),
+        apiClient.resumes.getAll(),
+        apiClient.search.jobs({ q: query })
+      ]);
 
-      try {
-        const appRes = await apiClient.applications.getAll();
-        applications = Array.isArray(appRes) ? appRes : [];
-      } catch (error) {
-        console.warn("Failed to fetch applications:", error);
-      }
-
-      try {
-        const resumeRes = await apiClient.resumes.getAll();
-        resumes = Array.isArray(resumeRes) ? resumeRes : [];
-      } catch (error) {
-        console.warn("Failed to fetch resumes:", error);
-      }
-
-      try {
-        const jobRes = await apiClient.search.jobs({ q: query });
-        jobs = Array.isArray(jobRes) ? jobRes : [];
-      } catch (error) {
-        console.warn("Failed to fetch jobs:", error);
-      }
+      const applications = applicationsData.status === 'fulfilled' && Array.isArray(applicationsData.value) 
+        ? applicationsData.value : [];
+      const resumes = resumesData.status === 'fulfilled' && Array.isArray(resumesData.value)
+        ? resumesData.value : [];
+      const jobs = jobsData.status === 'fulfilled' && Array.isArray(jobsData.value)
+        ? jobsData.value : [];
 
       const q = query.toLowerCase().trim();
       
-      // Flexible search function - works with partial matches, multi-word, and case-insensitive
+      // Enhanced flexible search function - works with partial matches, multi-word, and case-insensitive
       const matchesQuery = (text) => {
         if (!text) return false;
         const normalizedText = String(text).toLowerCase();
@@ -189,6 +197,7 @@ export function Header() {
         return queryWords.every(word => normalizedText.includes(word));
       };
       
+      // Filter with enhanced matching
       const filteredApplications = applications.filter(
         (app) =>
           matchesQuery(app.companyName) ||
@@ -298,36 +307,58 @@ export function Header() {
               onChange={(e) => handleSearch(e.target.value)}
               onFocus={() => searchQuery && setShowSearchResults(true)}
               onBlur={() => setTimeout(() => setShowSearchResults(false), 150)}
-              className="w-full h-10 pl-10 pr-12 rounded-lg bg-secondary/50 border border-border text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+              className="w-full h-10 pl-10 pr-24 rounded-lg bg-secondary/50 border border-border text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
             />
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-xs text-muted-foreground">
-              <Command className="w-3 h-3" />
-              <span>K</span>
-            </div>
+            {searchQuery && searchResults.length > 0 ? (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded">
+                {searchResults.length} {searchResults.length === 1 ? 'Match' : 'Matches'}
+              </div>
+            ) : !searchQuery ? (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-xs text-muted-foreground">
+                <Command className="w-3 h-3" />
+                <span>K</span>
+              </div>
+            ) : null}
           </div>
 
           {showSearchResults && searchResults.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-lg shadow-lg z-50">
+            <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-lg shadow-lg z-50 overflow-hidden">
+              <div className="px-3 py-2 bg-muted/50 border-b border-border">
+                <p className="text-xs font-medium text-muted-foreground">
+                  {searchQuery ? `Search Results for "${searchQuery}"` : 'Recent Searches'}
+                </p>
+              </div>
               <div className="max-h-80 overflow-y-auto">
                 {searchResults.map((result) => (
                   <button
                     key={`${result.type}-${result.id}`}
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => handleSearchResultClick(result)}
-                    className="w-full text-left px-4 py-3 hover:bg-secondary/50 transition-colors border-b border-border/50 last:border-b-0"
+                    className="w-full text-left px-4 py-3 hover:bg-secondary/70 transition-colors border-b border-border/50 last:border-b-0 group"
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <p className="font-medium text-sm">{result.title}</p>
-                        <p className="text-xs text-muted-foreground mt-1">{result.subtitle}</p>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate group-hover:text-primary transition-colors">
+                          {highlightText(result.title, searchQuery)}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1 truncate">
+                          {highlightText(result.subtitle, searchQuery)}
+                        </p>
                       </div>
-                      <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded ml-2 whitespace-nowrap">
+                      <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded ml-2 whitespace-nowrap flex-shrink-0 capitalize">
                         {result.type}
                       </span>
                     </div>
                   </button>
                 ))}
               </div>
+            </div>
+          )}
+
+          {showSearchResults && searchQuery && searchResults.length === 0 && (
+            <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-lg shadow-lg z-50 p-6 text-center">
+              <p className="text-sm text-muted-foreground italic">No matches found for "{searchQuery}"</p>
+              <p className="text-xs text-muted-foreground mt-1">Try different keywords or check spelling</p>
             </div>
           )}
         </div>

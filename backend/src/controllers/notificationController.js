@@ -1,4 +1,5 @@
 import User from '../models/User.js';
+import { getVapidPublicKey } from '../services/pushNotificationService.js';
 
 /**
  * Subscribe user to push notifications
@@ -100,6 +101,33 @@ export const getPushSubscription = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to get push subscription status',
+      error: error.message
+    });
+  }
+};
+/**
+ * Get VAPID public key for client-side subscription
+ */
+export const getVapidKey = async (req, res) => {
+  try {
+    const publicKey = getVapidPublicKey();
+    
+    if (!publicKey) {
+      return res.status(503).json({
+        success: false,
+        message: 'Push notifications are not configured on this server'
+      });
+    }
+
+    res.json({
+      success: true,
+      publicKey
+    });
+  } catch (error) {
+    console.error('Get VAPID key error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get VAPID key',
       error: error.message
     });
   }

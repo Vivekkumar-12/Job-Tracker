@@ -1,5 +1,5 @@
 // API Base URL configuration
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 // Helper to get auth token
 const getAuthToken = () => {
@@ -310,6 +310,10 @@ export const apiClient = {
       }),
     getSubscription: () =>
       makeRequest(`${API_BASE_URL}/notifications/subscription`, {
+        method: 'GET',
+      }),
+    getVapidKey: () =>
+      makeRequest(`${API_BASE_URL}/notifications/vapid-public-key`, {
         method: 'GET',
       }),
   },

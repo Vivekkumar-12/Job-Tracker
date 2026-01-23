@@ -3,7 +3,8 @@ import verifyToken from '../middleware/auth.js';
 import { 
   subscribeToPushNotifications,
   unsubscribeFromPushNotifications,
-  getPushSubscription 
+  getPushSubscription,
+  getVapidKey
 } from '../controllers/notificationController.js';
 
 const router = express.Router();
@@ -16,5 +17,8 @@ router.post('/unsubscribe', verifyToken, unsubscribeFromPushNotifications);
 
 // Get current subscription status
 router.get('/subscription', verifyToken, getPushSubscription);
+
+// Get VAPID public key (public endpoint)
+router.get('/vapid-public-key', getVapidKey);
 
 export default router;

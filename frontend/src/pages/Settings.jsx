@@ -81,7 +81,6 @@ const Settings = () => {
   const [isPushRequestingPermission, setIsPushRequestingPermission] = useState(false);
   const [interviewReminders, setInterviewReminders] = useState(true);
   const [deadlineAlerts, setDeadlineAlerts] = useState(true);
-  const [weeklyDigest, setWeeklyDigest] = useState(false);
 
   // Data export (OTP) state
   const [exportOtp, setExportOtp] = useState("");
@@ -125,7 +124,6 @@ const Settings = () => {
         setPushNotifications(user.notificationPreferences.push ?? true);
         setInterviewReminders(user.notificationPreferences.interview ?? true);
         setDeadlineAlerts(user.notificationPreferences.deadline ?? true);
-        setWeeklyDigest(user.notificationPreferences.digest ?? false);
       }
     }
   }, [user]);
@@ -163,7 +161,6 @@ const Settings = () => {
         setPushNotifications(prefs.push ?? true);
         setInterviewReminders(prefs.interview ?? true);
         setDeadlineAlerts(prefs.deadline ?? true);
-        setWeeklyDigest(prefs.digest ?? false);
       } catch (e) {
         console.warn("Failed to parse notification prefs", e);
       }
@@ -177,10 +174,9 @@ const Settings = () => {
       push: pushNotifications,
       interview: interviewReminders,
       deadline: deadlineAlerts,
-      digest: weeklyDigest,
     };
     localStorage.setItem("notificationPrefs", JSON.stringify(prefs));
-  }, [emailNotifications, pushNotifications, interviewReminders, deadlineAlerts, weeklyDigest]);
+  }, [emailNotifications, pushNotifications, interviewReminders, deadlineAlerts]);
 
   const handleAvatarChange = (e) => {
     const file = e.target.files?.[0];
@@ -471,7 +467,6 @@ const Settings = () => {
           push: pushNotifications,
           interview: interviewReminders,
           deadline: deadlineAlerts,
-          digest: weeklyDigest,
         },
         networkProfiles: {
           linkedin: linkedinUrl,
@@ -652,7 +647,6 @@ const Settings = () => {
           push: pushNotifications,
           interview: interviewReminders,
           deadline: deadlineAlerts,
-          digest: weeklyDigest,
         },
       });
 
@@ -1049,22 +1043,7 @@ const Settings = () => {
                       onCheckedChange={setDeadlineAlerts}
                     />
                   </div>
-                  <Separator className="bg-border" />
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Mail className="w-5 h-5 text-muted-foreground" />
-                      <div>
-                        <p className="font-medium">Weekly Digest</p>
-                        <p className="text-sm text-muted-foreground">
-                          Summary of your job search progress
-                        </p>
-                      </div>
-                    </div>
-                    <Switch
-                      checked={weeklyDigest}
-                      onCheckedChange={setWeeklyDigest}
-                    />
-                  </div>
+
                 </CardContent>
               </Card>
             </TabsContent>

@@ -13,6 +13,8 @@ import coverLetterRoutes from './routes/coverLetters.js';
 import searchRoutes from './routes/search.js';
 import notificationRoutes from './routes/notifications.js';
 import path from 'path';
+// Services
+import { startReminderScheduler } from './services/reminderScheduler.js';
 
 dotenv.config();
 
@@ -85,6 +87,9 @@ const startServer = async () => {
     await connectDB();
     const basePort = Number(PORT) || 5000;
     await listenWithRetry(basePort);
+    
+    // Start the reminder scheduler
+    startReminderScheduler();
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);
