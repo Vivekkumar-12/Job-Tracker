@@ -46,6 +46,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
+import { useReminderNotifications } from "@/hooks/useReminderNotifications";
 import apiClient from "@/lib/apiClient";
 
 const typeIcons = {
@@ -179,6 +180,9 @@ const Reminders = () => {
     emailNotifyBefore: "60", // default 1 hour before
   });
   const [submitting, setSubmitting] = useState(false);
+
+  // Enable real-time browser notifications when app is open
+  useReminderNotifications(reminders);
 
   // Fetch reminders on mount
   useEffect(() => {
@@ -619,12 +623,24 @@ const Reminders = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="1">1 minute before</SelectItem>
+                    <SelectItem value="2">2 minutes before</SelectItem>
+                    <SelectItem value="3">3 minutes before</SelectItem>
+                    <SelectItem value="4">4 minutes before</SelectItem>
+                    <SelectItem value="5">5 minutes before</SelectItem>
+                    <SelectItem value="10">10 minutes before</SelectItem>
                     <SelectItem value="15">15 minutes before</SelectItem>
+                    <SelectItem value="20">20 minutes before</SelectItem>
                     <SelectItem value="30">30 minutes before</SelectItem>
+                    <SelectItem value="45">45 minutes before</SelectItem>
                     <SelectItem value="60">1 hour before</SelectItem>
+                    <SelectItem value="90">1.5 hours before</SelectItem>
                     <SelectItem value="120">2 hours before</SelectItem>
                     <SelectItem value="180">3 hours before</SelectItem>
+                    <SelectItem value="240">4 hours before</SelectItem>
+                    <SelectItem value="300">5 hours before</SelectItem>
                     <SelectItem value="360">6 hours before</SelectItem>
+                    <SelectItem value="480">8 hours before</SelectItem>
                     <SelectItem value="720">12 hours before</SelectItem>
                     <SelectItem value="1440">1 day before</SelectItem>
                     <SelectItem value="2880">2 days before</SelectItem>
