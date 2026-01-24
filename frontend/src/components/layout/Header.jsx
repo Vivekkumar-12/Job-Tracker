@@ -14,6 +14,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { apiClient } from "@/lib/apiClient";
+import { universalSearch } from "@/lib/universalSearch";
 
 export function Header() {
   const { user, logout } = useAuth();
@@ -168,106 +169,63 @@ export function Header() {
     try {
       setShowSearchResults(true);
 
-      // Fetch all data sources concurrently with error handling
-      const [applicationsData, resumesData, jobsData] = await Promise.allSettled([
-        apiClient.applications.getAll(),
-        apiClient.resumes.getAll(),
-        apiClient.search.jobs({ q: query })
-      ]);
+      // Use universal search service with advanced matching
+      const results = await universalSearch(query);
 
-      const applications = applicationsData.status === 'fulfilled' && Array.isArray(applicationsData.value) 
-        ? applicationsData.value : [];
-      const resumes = resumesData.status === 'fulfilled' && Array.isArray(resumesData.value)
-        ? resumesData.value : [];
-      const jobs = jobsData.status === 'fulfilled' && Array.isArray(jobsData.value)
-        ? jobsData.value : [];
+      // Format results for display with metadata and ranking
+      const formattedResults = results
+        .sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0))
+        .slice(0, 20) // Limit to top 20 results
+        .map((item) => {
+          const typeConfig = {
+            application: {
+              icon: "📋",
+              label: "Application",
+              color: "text-blue-500",
+            },
+            resume: {
+              icon: "📄",
+              label: "Resume",
+              color: "text-green-500",
+            },
+            coverLetter: {
+              icon: "📝",
+              label: "Cover Letter",
+              color: "text-purple-500",
+            },
+            reminder: {
+              icon: "⏰",
+              label: "Reminder",
+              color: "text-orange-500",
+            },
+            jobListing: {
+              icon: "💼",
+              label: "Job",
+              color: "text-indigo-500",
+            },
+          };
 
-      const q = query.toLowerCase().trim();
-      
-      // Enhanced flexible search function - works with partial matches, multi-word, and case-insensitive
-      const matchesQuery = (text) => {
-        if (!text) return false;
-        const normalizedText = String(text).toLowerCase();
-        
-        // Check if the entire query is in the text
-        if (normalizedText.includes(q)) return true;
-        
-        // Split query into words and check if all words are present (in any order)
-        const queryWords = q.split(/\s+/).filter(w => w.length > 0);
-        return queryWords.every(word => normalizedText.includes(word));
-      };
-      
-      // Filter with enhanced matching
-      const filteredApplications = applications.filter(
-        (app) =>
-          matchesQuery(app.companyName) ||
-          matchesQuery(app.jobTitle) ||
-          matchesQuery(app.notes) ||
-          matchesQuery(app.location) ||
-          matchesQuery(app.status) ||
-          matchesQuery(app.salary) ||
-          matchesQuery(app.jobType) ||
-          matchesQuery(app.workMode) ||
-          matchesQuery(JSON.stringify(app))
-      );
+          const config = typeConfig[item.type] || {
+            icon: "📌",
+            label: item.type,
+            color: "text-gray-500",
+          };
 
-      const filteredResumes = resumes.filter(
-        (resume) =>
-          matchesQuery(resume.title) ||
-          matchesQuery(resume.subtitle) ||
-          matchesQuery(resume.professionalSummary) ||
-          matchesQuery(resume.email) ||
-          matchesQuery(resume.phone) ||
-          matchesQuery(JSON.stringify(resume.experience)) ||
-          matchesQuery(JSON.stringify(resume.education)) ||
-          matchesQuery(JSON.stringify(resume.skills)) ||
-          matchesQuery(JSON.stringify(resume))
-      );
+          return {
+            id: item.id,
+            title: item.title,
+            subtitle: item.subtitle || item.metadata?.company || item.metadata?.location || "",
+            type: item.type,
+            icon: config.icon,
+            label: config.label,
+            score: item.matchScore,
+            metadata: item.metadata,
+            path: item.path,
+            action: item.action,
+          };
+        });
 
-      const filteredJobs = jobs.filter(
-        (job) =>
-          matchesQuery(job.title) ||
-          matchesQuery(job.companyName) ||
-          matchesQuery(job.location) ||
-          matchesQuery(job.jobDescription) ||
-          matchesQuery(job.category) ||
-          matchesQuery(job.jobType) ||
-          matchesQuery(JSON.stringify(job))
-      );
-
-      const combined = [
-        ...filteredApplications.map((app) => ({
-          id: app._id,
-          title: app.companyName || 'Untitled Application',
-          subtitle: app.jobTitle || 'No job title',
-          type: "application",
-          path: `/applications/${app._id}`,
-        })),
-        ...filteredResumes.map((resume) => ({
-          id: resume._id,
-          title: resume.title || 'Untitled Resume',
-          subtitle: resume.subtitle || 'No subtitle',
-          type: "resume",
-          path: `/resumes`,
-          action: () => {
-            // Navigate to resumes page - user can find their resume there
-            navigate('/resumes');
-          }
-        })),
-        ...filteredJobs.map((job) => ({
-          id: job._id,
-          title: job.title || 'Untitled Job',
-          subtitle: job.companyName || 'No company',
-          type: "job",
-          path: `/search`,
-          action: () => {
-            // Navigate to job search - user can find the job there
-            navigate('/search');
-          }
-        })),
-      ];
-
-      setSearchResults(combined);
+      setSearchResults(formattedResults);
     } catch (error) {
       console.error("Search error:", error);
       setSearchResults([]);
@@ -325,7 +283,7 @@ export function Header() {
             <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-lg shadow-lg z-50 overflow-hidden">
               <div className="px-3 py-2 bg-muted/50 border-b border-border">
                 <p className="text-xs font-medium text-muted-foreground">
-                  {searchQuery ? `Search Results for "${searchQuery}"` : 'Recent Searches'}
+                  {searchQuery ? `Search Results (${searchResults.length} found)` : 'Recent Searches'}
                 </p>
               </div>
               <div className="max-h-80 overflow-y-auto">
@@ -338,23 +296,45 @@ export function Header() {
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm truncate group-hover:text-primary transition-colors">
-                          {highlightText(result.title, searchQuery)}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">{result.icon}</span>
+                          <p className="font-medium text-sm truncate group-hover:text-primary transition-colors flex-1">
+                            {highlightText(result.title, searchQuery)}
+                          </p>
+                        </div>
                         <p className="text-xs text-muted-foreground mt-1 truncate">
                           {highlightText(result.subtitle, searchQuery)}
                         </p>
+                        {result.metadata && (
+                          <div className="text-xs text-muted-foreground/70 mt-1 space-x-2">
+                            {result.metadata.date && (
+                              <span>📅 {new Date(result.metadata.date).toLocaleDateString()}</span>
+                            )}
+                            {result.metadata.status && (
+                              <span>• {result.metadata.status}</span>
+                            )}
+                            {result.metadata.location && (
+                              <span>📍 {result.metadata.location}</span>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded ml-2 whitespace-nowrap flex-shrink-0 capitalize">
-                        {result.type}
-                      </span>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {result.score && (
+                          <span className="text-xs bg-green-500/10 text-green-700 dark:text-green-400 px-2 py-0.5 rounded">
+                            {Math.round(result.score)}%
+                          </span>
+                        )}
+                        <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded whitespace-nowrap capitalize">
+                          {result.label}
+                        </span>
+                      </div>
                     </div>
                   </button>
                 ))}
               </div>
             </div>
           )}
-
           {showSearchResults && searchQuery && searchResults.length === 0 && (
             <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-lg shadow-lg z-50 p-6 text-center">
               <p className="text-sm text-muted-foreground italic">No matches found for "{searchQuery}"</p>

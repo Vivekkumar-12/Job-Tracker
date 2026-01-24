@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
+import { generateOtpEmailHTML } from './emailTemplates.js';
 
 dotenv.config();
 
@@ -41,15 +42,21 @@ export const sendOtpEmail = async ({ to, code, subject }) => {
     console.warn('SMTP not configured; skipping OTP email');
     return;
   }
-  const emailSubject = subject || 'Your verification code';
+  
+  const emailSubject = subject || '🔐 Your Verification Code - Job Hunt Hub';
+  const htmlBody = generateOtpEmailHTML({
+    code,
+    userName: 'User'
+  });
+  
   const text = `Your JobTracker verification code is ${code}. It expires in 10 minutes.`;
-  const html = `<p>Your JobTracker verification code is <strong>${code}</strong>.</p><p>It expires in 10 minutes.</p>`;
+  
   const mailer = ensureTransporter();
   await mailer.sendMail({
     from: process.env.SMTP_FROM,
     to,
     subject: emailSubject,
     text,
-    html,
+    html: htmlBody,
   });
 };

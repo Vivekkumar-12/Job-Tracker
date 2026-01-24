@@ -2,6 +2,7 @@ import Reminder from '../models/Reminder.js';
 import User from '../models/User.js';
 import { sendReminderEmail } from './emailService.js';
 import { sendReminderPushNotification } from './pushNotificationService.js';
+import { generateReminderEmailHTML } from './emailTemplates.js';
 
 /**
  * Check and send reminder emails that are due
@@ -49,21 +50,34 @@ export const processReminders = async () => {
               : true;
 
           if (user?.email && wantsEmail && typeAllowed) {
-            const subject = `Reminder: ${reminder.title}`;
+            const subject = `🔔 ${reminder.title} - Job Hunt Hub Reminder`;
+            
+            // Generate beautiful HTML email
+            const htmlBody = generateReminderEmailHTML({
+              title: reminder.title,
+              description: reminder.description,
+              company: reminder.company,
+              reminderDate: reminder.reminderDate,
+              type: reminder.type,
+              userName: user.username?.split(' ')[0] || 'User'
+            });
+
+            // Simple text version as fallback
             const when = new Date(reminder.reminderDate).toLocaleString();
             const bodyLines = [
-              reminder.description ? reminder.description : null,
+              `Reminder: ${reminder.title}`,
+              reminder.description ? `Description: ${reminder.description}` : null,
               reminder.company ? `Company: ${reminder.company}` : null,
               `When: ${when}`,
               reminder.type ? `Type: ${reminder.type}` : null,
             ].filter(Boolean);
 
-            // Send email notification
+            // Send email notification with beautiful HTML template
             await sendReminderEmail({
               to: user.email,
               subject,
               text: bodyLines.join('\n'),
-              html: bodyLines.map((l) => `<p>${l}</p>`).join(''),
+              html: htmlBody,
             });
 
             // Send push notification (if enabled)
