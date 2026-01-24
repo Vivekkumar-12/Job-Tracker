@@ -1,10 +1,33 @@
 import fs from 'fs';
 import { createRequire } from 'module';
 import * as mammothModule from 'mammoth';
-import { PDFParse } from 'pdf-parse';
 
 const mammoth = mammothModule.default || mammothModule;
-const pdfParse = PDFParse;
+
+// pdf-parse is CommonJS; load safely for ESM. We attempt sync load first, then lazy-load if missing.
+const require = createRequire(import.meta.url);
+let pdfParse;
+try {
+  const pdfParseModule = require('pdf-parse');
+  pdfParse = pdfParseModule.default || (typeof pdfParseModule === 'function' ? pdfParseModule : null);
+  console.log('[ATS] pdf-parse module loaded (sync). Using function export:', typeof pdfParse === 'function');
+} catch (err) {
+  console.error('[ATS] Failed to load pdf-parse synchronously:', err?.message);
+  pdfParse = null;
+}
+
+async function ensurePdfParse() {
+  if (pdfParse) return pdfParse;
+  try {
+    const pdfParseModule = await import('pdf-parse');
+    pdfParse = pdfParseModule.default || (typeof pdfParseModule === 'function' ? pdfParseModule : null);
+    console.log('[ATS] pdf-parse module loaded (lazy). Using function export:', typeof pdfParse === 'function');
+  } catch (err) {
+    console.error('[ATS] Failed to lazy-load pdf-parse:', err?.message);
+    pdfParse = null;
+  }
+  return pdfParse;
+}
 
 export const ACTION_VERBS = {
   leadership: [
@@ -220,11 +243,26 @@ async function extractTextFromFile(filePath) {
 
   try {
     if (ext === 'pdf') {
+      const pdfParseFn = await ensurePdfParse();
+      if (!pdfParseFn) {
+        console.error('[ATS] pdf-parse is not available after lazy load');
+        throw new Error('PDF parser unavailable - using local ATS fallback');
+      }
+
       const buffer = fs.readFileSync(filePath);
       console.log('[ATS] Read PDF file, buffer size:', buffer.length);
-      const parsed = await pdfParse(buffer);
-      text = (parsed.text || '').trim();
-      console.log('[ATS] Extracted PDF text length:', text.length);
+      console.log('[ATS] Calling PDFParse with buffer...');
+
+      try {
+        // Use pdf-parse as a function (recommended usage) to avoid PDFJS config issues.
+        const parsed = await pdfParseFn(buffer, { max: 0, version: 'default' });
+        text = (parsed.text || '').trim();
+        console.log('[ATS] ✓ Successfully extracted PDF text, length:', text.length);
+      } catch (parseErr) {
+        console.error('[ATS] PDFParse call failed:', parseErr?.message);
+        console.error('[ATS] Detailed error:', parseErr);
+        throw parseErr;
+      }
     } else if (ext === 'docx' || ext === 'doc') {
       const buffer = fs.readFileSync(filePath);
       console.log('[ATS] Read DOCX file, buffer size:', buffer.length);

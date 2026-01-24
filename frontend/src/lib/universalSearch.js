@@ -152,7 +152,12 @@ const searchResumes = async (query) => {
   const matcher = createMatcher(query);
   
   try {
-    const resumes = await apiClient.resumes.getAll();
+    const resumeResponse = await apiClient.resumes.getAll();
+    const resumes = Array.isArray(resumeResponse?.data)
+      ? resumeResponse.data
+      : Array.isArray(resumeResponse)
+        ? resumeResponse
+        : [];
     
     return (resumes || [])
       .map(resume => ({
@@ -199,7 +204,12 @@ const searchCoverLetters = async (query) => {
   const matcher = createMatcher(query);
   
   try {
-    const coverLetters = await apiClient.coverLetters.getAll();
+    const coverLetterResponse = await apiClient.coverLetters.getAll();
+    const coverLetters = Array.isArray(coverLetterResponse?.data)
+      ? coverLetterResponse.data
+      : Array.isArray(coverLetterResponse)
+        ? coverLetterResponse
+        : [];
     
     return (coverLetters || [])
       .map(cl => ({

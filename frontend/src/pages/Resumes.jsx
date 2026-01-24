@@ -72,9 +72,18 @@ const getAtsValue = (score) => {
 const clamp01 = (n) => Math.max(0, Math.min(100, Math.round(n)));
 
 const hasValidAtsScore = (resume) => {
-  const score = getAtsValue(resume?.atsScore);
-  // Show even if 0, but hide if NaN or missing
-  return Number.isFinite(score);
+  // Only consider score "valid" if it's explicitly > 0 (real calculated score)
+  // Return false for 0, null, undefined, or empty objects so "Calculate ATS" button shows
+  const atsScore = resume?.atsScore;
+  
+  // If atsScore is falsy or empty object, no valid score yet
+  if (!atsScore || (typeof atsScore === 'object' && Object.keys(atsScore).length === 0)) {
+    return false;
+  }
+  
+  const score = getAtsValue(atsScore);
+  // Only valid if score is a finite number AND > 0
+  return Number.isFinite(score) && score > 0;
 };
 
 const triggerLocalAtsScore = async (resumeId, titleForLog = '') => {

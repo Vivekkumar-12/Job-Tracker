@@ -14,7 +14,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { apiClient } from "@/lib/apiClient";
-import { universalSearch } from "@/lib/universalSearch";
+import { globalSearch } from "@/lib/globalSearch";
 
 export function Header() {
   const { user, logout } = useAuth();
@@ -169,12 +169,11 @@ export function Header() {
     try {
       setShowSearchResults(true);
 
-      // Use universal search service with advanced matching
-      const results = await universalSearch(query);
+      // Use global search helper to score and rank results
+      const results = await globalSearch(query);
 
       // Format results for display with metadata and ranking
       const formattedResults = results
-        .sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0))
         .slice(0, 20) // Limit to top 20 results
         .map((item) => {
           const typeConfig = {
@@ -218,7 +217,7 @@ export function Header() {
             type: item.type,
             icon: config.icon,
             label: config.label,
-            score: item.matchScore,
+            score: item.score ?? item.matchScore ?? 0,
             metadata: item.metadata,
             path: item.path,
             action: item.action,

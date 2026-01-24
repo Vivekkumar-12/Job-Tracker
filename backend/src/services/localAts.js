@@ -8,10 +8,12 @@ const require = createRequire(import.meta.url);
 let pdfParse;
 try {
   const pdfParseModule = require('pdf-parse');
-  pdfParse = pdfParseModule.default || pdfParseModule;
+  // pdf-parse exports PDFParse class as named export
+  pdfParse = pdfParseModule.PDFParse || pdfParseModule.default || pdfParseModule;
   console.log('[localAts] pdfParse loaded successfully, type:', typeof pdfParse);
 } catch (err) {
   console.error('[localAts] Failed to load pdfParse:', err.message);
+  pdfParse = null;
 }
 
 const TECH_KEYWORDS = [
@@ -77,11 +79,13 @@ export async function analyzeResumeLocally(filePath) {
   // Extract text from PDF or Word document
   try {
     if (ext === 'pdf') {
-      if (!pdfParse || typeof pdfParse !== 'function') {
+      if (!pdfParse) {
         throw new Error('PDF parsing is not available. Please use the Resume Optimizer Pro API.');
       }
       const buffer = fs.readFileSync(filePath);
-      const parsed = await pdfParse(buffer);
+      // PDFParse is a class that needs to be instantiated
+      const parser = new pdfParse();
+      const parsed = await parser(buffer);
       text = (parsed.text || '').trim();
     } else if (ext === 'docx' || ext === 'doc') {
       const buffer = fs.readFileSync(filePath);

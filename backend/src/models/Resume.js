@@ -173,9 +173,10 @@ const resumeSchema = new mongoose.Schema({
   }
 });
 
-// Index for fast queries
+// Index for fast queries and uniqueness per user
 resumeSchema.index({ userId: 1, createdAt: -1 });
 resumeSchema.index({ userId: 1, isPinned: -1 });
+resumeSchema.index({ userId: 1, title: 1 }, { unique: true, collation: { locale: 'en', strength: 2 } });
 
 // Auto-update updatedAt timestamp
 resumeSchema.pre('save', function(next) {

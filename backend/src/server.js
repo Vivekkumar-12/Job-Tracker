@@ -38,6 +38,45 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'API is running', timestamp: new Date() });
 });
 
+// DEBUG: Test pdf-parse loading
+app.get('/api/debug/pdf-parse', async (req, res) => {
+  try {
+    console.log('[DEBUG] ========== PDF-PARSE DIAGNOSTIC ==========');
+    
+    // Test direct import
+    let pdfParse;
+    try {
+      const pdfParseModule = await import('pdf-parse');
+      console.log('[DEBUG] ESM import successful');
+      console.log('[DEBUG] Module type:', typeof pdfParseModule);
+      console.log('[DEBUG] Module keys:', Object.keys(pdfParseModule));
+      pdfParse = pdfParseModule.default || pdfParseModule;
+      console.log('[DEBUG] Resolved pdfParse type:', typeof pdfParse);
+    } catch (importErr) {
+      console.error('[DEBUG] ESM import failed:', importErr.message);
+    }
+    
+    // Test CommonJS require (in case it works differently)
+    try {
+      const { createRequire } = await import('module');
+      const require = createRequire(import.meta.url);
+      const pdfParseModule = require('pdf-parse');
+      console.log('[DEBUG] CommonJS require successful');
+      console.log('[DEBUG] Require module type:', typeof pdfParseModule);
+      console.log('[DEBUG] Require module keys:', Object.keys(pdfParseModule));
+    } catch (reqErr) {
+      console.error('[DEBUG] CommonJS require failed:', reqErr.message);
+    }
+    
+    res.json({ 
+      message: 'Check server console for pdf-parse diagnostic output',
+      pdfParseAvailable: typeof pdfParse === 'function'
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Auth Routes (public)
 app.use('/api/auth', authRoutes);
 
