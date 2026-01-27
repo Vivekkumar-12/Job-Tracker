@@ -4,21 +4,27 @@ import {
   subscribeToPushNotifications,
   unsubscribeFromPushNotifications,
   getPushSubscription,
-  getVapidKey
+  getVapidKey,
+  getNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  deleteNotification,
+  deleteAllNotifications
 } from '../controllers/notificationController.js';
 
 const router = express.Router();
 
-// Subscribe to push notifications
+// Push notification endpoints
 router.post('/subscribe', verifyToken, subscribeToPushNotifications);
-
-// Unsubscribe from push notifications
 router.post('/unsubscribe', verifyToken, unsubscribeFromPushNotifications);
-
-// Get current subscription status
 router.get('/subscription', verifyToken, getPushSubscription);
-
-// Get VAPID public key (public endpoint)
 router.get('/vapid-public-key', getVapidKey);
+
+// Notification management endpoints
+router.get('/', verifyToken, getNotifications);
+router.patch('/:notificationId/read', verifyToken, markNotificationAsRead);
+router.patch('/mark-all-read', verifyToken, markAllNotificationsAsRead);
+router.delete('/:notificationId', verifyToken, deleteNotification);
+router.delete('/', verifyToken, deleteAllNotifications);
 
 export default router;
