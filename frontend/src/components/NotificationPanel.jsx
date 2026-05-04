@@ -106,7 +106,9 @@ export const NotificationPanel = () => {
             </button>
           </div>
 
-          {loading && <div className="notification-loading">Loading notifications...</div>}
+          {loading ? (
+            <div className="notification-loading">Loading notifications...</div>
+          ) : displayNotifications.length === 0 ? (
             <div className="notification-empty">
               <Bell size={40} />
               <p>No notifications</p>
@@ -172,4 +174,4 @@ export const NotificationPanel = () => {
   );
 };
 
-export default NotificationPanel;
+export default NotificationPanel;export default NotificationPanel;

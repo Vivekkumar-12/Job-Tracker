@@ -29,10 +29,10 @@ export const NotificationProvider = ({ children }) => {
     setError(null);
     try {
       const data = await fetchNotifications(unreadOnly, limit, skip);
+      console.log('✅ Notifications loaded from DB:', data.notifications?.length || 0, 'Total:', data.pagination?.total);
       setNotifications(data.notifications || []);
       setPagination(data.pagination || {});
       setUnreadCount(data.pagination?.unreadCount || 0);
-      console.log('✅ Notifications loaded:', data.notifications?.length || 0);
     } catch (err) {
       setError(err.message);
       console.error('❌ Error loading notifications:', err);
@@ -59,85 +59,62 @@ export const NotificationProvider = ({ children }) => {
   // Mark single notification as read
   const markAsRead = useCallback(async (notificationId) => {
     try {
-      await markNotificationAsRead(notificationId);
+      console.log('✓ Marking notification as read:', notificationId);
+      const result = await markNotificationAsRead(notificationId);
+      console.log('✓ Mark as read response:', result);
       
-      // Update local state
-      setNotifications(prev =>
-        prev.map(notif =>
-          notif._id === notificationId
-            ? { ...notif, read: true, readAt: new Date().toISOString() }
-            : notif
-        )
-      );
-      
-      // Update unread count
-      setUnreadCount(prev => Math.max(0, prev - 1));
+      // Reload to get fresh data
+      await loadNotifications();
     } catch (err) {
       setError(err.message);
-      console.error('Error marking notification as read:', err);
+      console.error('❌ Error marking notification as read:', err);
     }
-  }, []);
+  }, [loadNotifications]);
 
   // Mark all notifications as read
   const markAllAsRead = useCallback(async () => {
     try {
-      await markAllNotificationsAsRead();
+      console.log('✓ Marking all as read');
+      const result = await markAllNotificationsAsRead();
+      console.log('✓ Mark all as read response:', result);
       
-      // Update local state
-      setNotifications(prev =>
-        prev.map(notif => ({
-          ...notif,
-          read: true,
-          readAt: new Date().toISOString()
-        }))
-      );
-      
-      // Reset unread count
-      setUnreadCount(0);
+      // Reload to get fresh data
+      await loadNotifications();
     } catch (err) {
       setError(err.message);
-      console.error('Error marking all notifications as read:', err);
+      console.error('❌ Error marking all notifications as read:', err);
     }
-  }, []);
+  }, [loadNotifications]);
 
   // Delete single notification
   const deleteOne = useCallback(async (notificationId) => {
     try {
-      await deleteNotification(notificationId);
+      console.log('🗑 Deleting notification:', notificationId);
+      const result = await deleteNotification(notificationId);
+      console.log('🗑 Delete response:', result);
       
-      // Update local state
-      setNotifications(prev =>
-        prev.filter(notif => notif._id !== notificationId)
-      );
-      
-      // Update counts
-      const deletedNotif = notifications.find(n => n._id === notificationId);
-      if (deletedNotif && !deletedNotif.read) {
-        setUnreadCount(prev => Math.max(0, prev - 1));
-      }
-      
-      setPagination(prev => ({
-        ...prev,
-        total: Math.max(0, prev.total - 1)
-      }));
+      // Reload to get fresh data
+      await loadNotifications();
     } catch (err) {
       setError(err.message);
-      console.error('Error deleting notification:', err);
+      console.error('❌ Error deleting notification:', err);
     }
-  }, [notifications]);
+  }, [loadNotifications]);
 
   // Delete all notifications
   const deleteAll = useCallback(async () => {
     try {
-      await deleteAllNotifications();
+      console.log('🗑 Deleting all notifications');
+      const result = await deleteAllNotifications();
+      console.log('🗑 Delete all response:', result);
       
-      // Clear local state
+      // Clear state immediately
       setNotifications([]);
       setUnreadCount(0);
       setPagination({ total: 0, limit: 50, skip: 0 });
     } catch (err) {
       setError(err.message);
-      console.error('Error deleting all notifications:', err);
+      console.error('❌ Error deleting all notifications:', err);
     }
   }, []);
 
